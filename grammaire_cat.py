@@ -102,65 +102,66 @@ def type_raising(c):
         return Categories(s, "/", s_np, origin=(c, None, "TR"))
     return None
 
-# 
+# fct principale
 
 def prog_cat(sentence, lexicon, use_tr=True):
-    """
-    fct principale qui cherche les combi possible 
-    ou RIP 
-
-    """
     start_t = time.perf_counter()
     words = sentence.split()
     n = len(words)
-    chart = [[[] for _ in range(n + 1)] for _ in range(n + 1)]
+    
+    # CORRECTION : On crée un dictionnaire dans chaque case
+    chart = [[{"success": [], "clashs": []} for _ in range(n + 1)] for _ in range(n + 1)]
     nb_comb = 0
 
-   # initialisation tableau vide + remplissage avec lexique ou ???
     for i, word in enumerate(words):
         if word in lexicon:
             for cat_str in lexicon[word]:
                 c = parse_cat_string(cat_str, word=word)
-                chart[i][i+1].append(c)
+                chart[i][i+1]["success"].append(c)
                 if use_tr:
                     tr = type_raising(c)
-                    if tr: chart[i][i+1].append(tr)
+                    if tr: chart[i][i+1]["success"].append(tr)
         else:
-            # ici cas pour mot pas dans lexique - visualisation
-            chart[i][i+1].append(Categories("???", word=word))
+            chart[i][i+1]["success"].append(Categories("???", word=word))
 
-    # Grosse boucle 
     for span in range(2, n + 1):
         for i in range(n - span + 1):
             j = i + span
             for k in range(i + 1, j):
-                
-                # intègre ici coordination plutot que fct spécifique 
+                # COORDINATION
                 if j - i >= 3:
                     for k2 in range(k + 1, j):
-                        for c1 in chart[i][k]:
-                            for c2 in chart[k][k2]:
+                        for c1 in chart[i][k]["success"]:
+                            for c2 in chart[k][k2]["success"]:
                                 if (c2.word or '').lower() == 'et':
-                                    for c3 in chart[k2][j]:
+                                    for c3 in chart[k2][j]["success"]:
                                         nb_comb += 1
                                         if c1.matches(c3):
                                             res = Categories(c1.left, c1.slash, c1.right, origin=(c1, c2, c3, "<*>"))
-                                            chart[i][j].append(res)
+                                            chart[i][j]["success"].append(res)
 
-                # gerer "et" = ne pas le traiter tous seul - on peut ? 
-                for left in chart[i][k]:
-                    for right in chart[k][j]:
+                # BINAIRE
+                for left in chart[i][k]["success"]:
+                    for right in chart[k][j]["success"]:
                         if (left.word or '').lower() == 'et' or (right.word or '').lower() == 'et': 
                             continue
 
-                        # application de nos règles 
                         nb_comb += 1
+                        found_rule = False
+                        # On teste les règles
                         for res in [appli_norm(left, right), appli_inverse(left, right), 
                                      compo_harmo(left, right), compo_inverse(left, right)]:
-                            if res: chart[i][j].append(res)
-                           
+                            if res: 
+                                chart[i][j]["success"].append(res)
+                                found_rule = True
+                        
+                        # SI RIEN NE MARCHE -> CLASH
+                        if not found_rule:
+                            chart[i][j]["clashs"].append((left, right))
+                            
     exec_t = (time.perf_counter() - start_t) * 1000
-    valid = [s for s in chart[0][n] if str(s) in ["S", "NP"]]
+    # On cherche les succès finaux
+    valid = [s for s in chart[0][n]["success"] if str(s) in ["S", "NP"]]
     return valid, nb_comb, exec_t, chart
 
 
@@ -367,31 +368,32 @@ for p in phrases_test:
     rapport += f"<p style='margin-top: 0; color: #636e72; font-size: 0.9em;'>Temps d'exécution : {t:.2f} ms | Combinaisons testées : {nb}</p>"
     
     # récupération des  données 
-    succes = [c for c in chart[0][n] if str(c) in ["S", "NP"]]
-    echecs = [c for c in chart[0][n] if str(c) not in ["S", "NP"]]
-    
-    abandon = []
-    # parcourt de tableau 
-    for span in range(n - 1, 1, -1):
-        for i in range(n - span + 1):
-            j = i + span
-            for cat in chart[i][j]:
-                abandon.append((i, j, cat))
-
-    # GG
+    # visu succes
+    succes = [c for c in chart[0][n]["success"] if str(c) in ["S", "NP"]]
     if succes:
-        rapport += "<h3 style='color:#00b894;'>SUCCESS</h3>"
+        rapport += "<h3 style='color:#00b894;'>SUCCESS /clap</h3>"
         for i, sol in enumerate(succes):
             rapport += tree_to_html(recup_strc_arbre(sol), f"Succès {i+1}/{len(succes)}")
     else:
         rapport += "<h3 style='color:#d63031;'>RIP</h3>"
 
-    # affichage échec => va au bout mais pas de S 
+    # echec
+    echecs = [c for c in chart[0][n]["success"] if str(c) not in ["S", "NP"]]
+ # affichage échec => va au bout mais pas de S 
     if echecs:
         rapport += "<h3 style='color:#e17055;'>RIP</h3>"
         rapport += "<p style='font-size:0.9em; color:#555;'>ça arrivent au bout mais pas un S.</p>"
         for i, sol in enumerate(echecs):
-            rapport += tree_to_html(recup_strc_arbre(sol), f"Échec Global {i+1}")
+            rapport += tree_to_html(recup_strc_arbre(sol), f"Échec : structure finale {i+1}")
+
+    # abandon 
+    abandon = []
+    # parcourt de tableau 
+    for span in range(n - 1, 1, -1):
+        for i_idx in range(n - span + 1):
+            j_idx = i_idx + span
+            for cat in chart[i_idx][j_idx]["success"]:
+                abandon.append((i_idx, j_idx, cat))
 
     # pour les abandon -> page trop longue donc menu déroulant ?
     if abandon:
@@ -405,13 +407,33 @@ for p in phrases_test:
                 Constuction puis abandon étape 4 algo ? 
                 </p>
         """
-        for idx, (i, j, cat) in enumerate(abandon):
-            mots_concernes = " ".join(words[i:j])
+        for idx, (i_idx, j_idx, cat) in enumerate(abandon):
+            mots_concernes = " ".join(words[i_idx:j_idx])
             titre = f"abandon n°{idx+1} : « {mots_concernes} »"
             rapport += tree_to_html(recup_strc_arbre(cat), titre)
+        rapport += "</details>"
+
+    # autres abandon
+
+    rapport += "<h3>Abandon en cours de route</h3>"
+    
+    for span in range(1, n + 1):
+        for i_idx in range(n - span + 1):
+            j_idx = i_idx + span
             
-        rapport += "</div></details>"
-        
+            if chart[i_idx][j_idx]["clashs"]:
+                mots_segment = " ".join(words[i_idx:j_idx])
+                rapport += f"""
+                <details style='margin-bottom:5px; margin-left: 10px;'>
+                    <summary style='color:#636e72; font-size:0.85em; cursor:pointer;'>
+                        Segment « {mots_segment} » : {len(chart[i_idx][j_idx]['clashs'])} rejets
+                    </summary>
+                    <ul style='font-size:0.8em; color:#d63031; list-style-type: "ABANDON ";'>
+                """
+                for left, right in chart[i_idx][j_idx]["clashs"]:
+                    rapport += f"<li>marche pas <b>{left}</b> et <b>{right}</b></li>"
+                rapport += "</ul></details>"
+                
     rapport += "<hr style='margin-top:40px; border-top: 2px solid #2d3436;'>"
 
 rapport += "</body></html>"
