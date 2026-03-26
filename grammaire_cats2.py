@@ -118,7 +118,7 @@ def clean_categories(s, word=None):
 
 # Règles 
 # moule pour essayer de gérer le "et" sans avoir 10k entrées dans le lexique 
-def substitute_x(template, concrete):
+def substitut_x(template, concrete):
     """
     Remplace X par la catégorie concrète lors d'une 
     coordination pour la recherche
@@ -126,17 +126,17 @@ def substitute_x(template, concrete):
     if getattr(template, 'is_basic', isinstance(template, str)):
         t_val = template.left if hasattr(template, 'left') else template
         return concrete if t_val == "X" else Categories(t_val)
-    return Categories(substitute_x(template.left, concrete), template.slash, substitute_x(template.right, concrete))
+    return Categories(substitut_x(template.left, concrete), template.slash, substitut_x(template.right, concrete))
 
 def appli_norm(l, r):
     if l.slash == "/" and l.right.matches(r):
-        res = substitute_x(l.left, r) if "X" in str(l) else l.left
+        res = substitut_x(l.left, r) if "X" in str(l) else l.left
         return Categories(res.left, res.slash, res.right, origin=(l, r, ">"))
     return None
 
 def appli_inverse(l, r):
     if r.slash == "\\" and r.right.matches(l):
-        res = substitute_x(r.left, l) if "X" in str(r) else r.left
+        res = substitut_x(r.left, l) if "X" in str(r) else r.left
         return Categories(res.left, res.slash, res.right, origin=(l, r, "<"))
     return None
 
