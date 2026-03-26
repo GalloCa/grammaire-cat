@@ -399,23 +399,15 @@ phrases_test = charger_phrases("phrases.txt")
 
 
 # def du CSS à intégrer dans le html 
-
-
-
 global_style = r"""
 <style>
     body { font-family: sans-serif; background: #ffffff; padding: 40px; color:#2d3436; line-height: 1.5; }
     h1 { border-bottom: 2px solid #2d3436; padding-bottom: 10px; margin-bottom: 30px; }
-    
     .phrase-container { margin-bottom: 30px; border: 1px solid #ccc; border-radius: 4px; }
     summary { padding: 15px; cursor: pointer; font-weight: bold; background: #f8f9fa; border-bottom: 1px solid #ccc; font-size: 1.2em; }
     .content { padding: 20px; }
-
     .stats-text { font-weight: normal; color: #636e72; margin-left: 20px; font-size: 0.8em; }
-
-    /* --- REGLAGES DE L'ARBRE --- */
     .ccg { border-collapse: collapse; margin: 40px 0; }
-    
     .ccg td { 
         text-align: center; 
         vertical-align: top; 
@@ -423,8 +415,6 @@ global_style = r"""
         min-width: 150px; 
         background-image: none !important; 
     }
-
-    /* ESPACEMENT DES MOTS : On donne de l'air ici */
     .word { 
         font-weight: bold; 
         font-size: 1.5em; 
@@ -433,7 +423,6 @@ global_style = r"""
         position: relative;
         z-index: 10;
     }
-
     .cat { 
         font-family: monospace; 
         font-size: 1.2em; 
@@ -445,7 +434,7 @@ global_style = r"""
         display: inline-block;
     }
 
-    /* Pointillé vertical */
+    /* Pointillé vertical - pas encore ça*/
     .cat-with-bar .cat::after {
         content: "";
         position: absolute;
@@ -465,8 +454,7 @@ global_style = r"""
         background-position: center top;
         background-repeat: repeat-y;
     }
-
-    /* LA LIGNE HORIZONTALE */
+    /* ligne règle */
     .line { 
         border-top: 3px solid #2d3436; 
         position: relative; 
@@ -475,7 +463,7 @@ global_style = r"""
         height: 15px; 
     }
 
-    /* LES RÈGLES (FLÈCHES) */
+    /* visu règles */
     .rule { 
         position: absolute; 
         right: -25px; 
@@ -484,7 +472,7 @@ global_style = r"""
         padding: 0 6px; 
         font-size: 1.1em; 
         font-weight: bold;
-        color: #d63031; /* Un rouge discret pour les règles */
+        color: #d63031; 
     }
 </style>
 """
