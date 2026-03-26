@@ -9,9 +9,7 @@ class Categories :
     """ 
     On veut ce qui est à gauche du slash = résultat attendu
     droite = argument attendu
-    is_basic = catégorie basique S ou NP
-
-    
+    is_basic = catégorie basique S ou NP 
     """
     def __init__(self, left, slash=None, right=None, word=None, origin=None):
         self.left = left    
@@ -35,7 +33,7 @@ class Categories :
         return str(self) == str(other)
     
 
-    # nettoyage du lexique + gestion parenthèse 
+# nettoyage du lexique + gestion parenthèse 
 def clean_categories(s, word=None):
         s = s.strip()
         while s.startswith("(") and s.endswith(")"):
@@ -51,6 +49,7 @@ def clean_categories(s, word=None):
         
         if not any(c in s for c in ["/", "\\"]):
             return Categories(s, word=word)
+        
     # lecture pour trouver 1er item à droite 
         depth, split_idx = 0, -1
         for i in range(len(s)-1, -1, -1):
@@ -60,7 +59,7 @@ def clean_categories(s, word=None):
                 split_idx = i; 
                 break
             
-    # récursivité = refait tout jusqu'à avoir plus rien    
+    # refait tout jusqu'à avoir plus rien (attention récursif mettre gestion erreur)
         if split_idx != -1:
             return Categories(clean_categories(s[:split_idx]), s[split_idx], clean_categories(s[split_idx+1:]), word=word)
         return Categories(s, word=word)
@@ -71,7 +70,6 @@ def substitute_x(template, concrete):
     if template.is_basic :
         return concrete if template.left == "X" else Categories(template.left)
     return Categories(substitute_x(template.left, concrete), template.slash, substitute_x(template.right, concrete))
-
 
 def appli_norm(l, r):
     if l.slash == "/" and l.right.matches(r):
@@ -105,24 +103,24 @@ def type_raising(c):
 # fct principale
 
 def prog_cat(sentence, lexicon, use_tr=True):
-    start_t = time.perf_counter()
+    start_t = time.perf_counter() # prépare pour calcul temps
     words = sentence.split()
     n = len(words)
     
-    # CORRECTION : On crée un dictionnaire dans chaque case
-    chart = [[{"success": [], "clashs": []} for _ in range(n + 1)] for _ in range(n + 1)]
+    # crée liste avec succes et 
+    chart = [[{"succes": [], "clashs": []} for _ in range(n + 1)] for _ in range(n + 1)]
     nb_comb = 0
 
     for i, word in enumerate(words):
         if word in lexicon:
             for cat_str in lexicon[word]:
                 c = clean_categories(cat_str, word=word)
-                chart[i][i+1]["success"].append(c)
+                chart[i][i+1]["succes"].append(c)
                 if use_tr:
                     tr = type_raising(c)
-                    if tr: chart[i][i+1]["success"].append(tr)
+                    if tr: chart[i][i+1]["succes"].append(tr)
         else:
-            chart[i][i+1]["success"].append(Categories("???", word=word))
+            chart[i][i+1]["succes"].append(Categories("???", word=word))
 
     for span in range(2, n + 1):
         for i in range(n - span + 1):
@@ -131,18 +129,18 @@ def prog_cat(sentence, lexicon, use_tr=True):
                 # COORDINATION
                 if j - i >= 3:
                     for k2 in range(k + 1, j):
-                        for c1 in chart[i][k]["success"]:
-                            for c2 in chart[k][k2]["success"]:
+                        for c1 in chart[i][k]["succes"]:
+                            for c2 in chart[k][k2]["succes"]:
                                 if (c2.word or '').lower() == 'et':
-                                    for c3 in chart[k2][j]["success"]:
+                                    for c3 in chart[k2][j]["succes"]:
                                         nb_comb += 1
                                         if c1.matches(c3):
                                             res = Categories(c1.left, c1.slash, c1.right, origin=(c1, c2, c3, "<*>"))
-                                            chart[i][j]["success"].append(res)
+                                            chart[i][j]["succes"].append(res)
 
                 # BINAIRE
-                for left in chart[i][k]["success"]:
-                    for right in chart[k][j]["success"]:
+                for left in chart[i][k]["succes"]:
+                    for right in chart[k][j]["succes"]:
                         if (left.word or '').lower() == 'et' or (right.word or '').lower() == 'et': 
                             continue
 
@@ -152,7 +150,7 @@ def prog_cat(sentence, lexicon, use_tr=True):
                         for res in [appli_norm(left, right), appli_inverse(left, right), 
                                      compo_harmo(left, right), compo_inverse(left, right)]:
                             if res: 
-                                chart[i][j]["success"].append(res)
+                                chart[i][j]["succes"].append(res)
                                 found_rule = True
                         
                         # SI RIEN NE MARCHE -> CLASH
@@ -161,12 +159,14 @@ def prog_cat(sentence, lexicon, use_tr=True):
                             
     exec_t = (time.perf_counter() - start_t) * 1000
     # On cherche les succès finaux
-    valid = [s for s in chart[0][n]["success"] if str(s) in ["S", "NP"]]
+    valid = [s for s in chart[0][n]["succes"] if str(s) in ["S", "NP"]]
     return valid, nb_comb, exec_t, chart
 
 
-def get_best_fragment_sequence(chart, n):
+def recup_frag_abandon(chart, n):
     """ 
+    test fct pour récup en mémoire les fragments abandonnés
+
     """
     dp = {0: (0, [])} #  = (nombre_de_morceaux, liste_des_categories)
     
@@ -183,15 +183,14 @@ def get_best_fragment_sequence(chart, n):
         
     return dp[n][1]
 
-
 # on garde les échecs - construction 
 def arbre_echec(fragments):
     """ 
     génère arbre de rupture 
+    
     """
     if not fragments: return None
     trees = [recup_strc_arbre(cat) for cat in fragments]
-    
     
     while len(trees) > 1:
         left = trees.pop(0)
@@ -212,7 +211,8 @@ def arbre_echec(fragments):
 
 def recup_strc_arbre(cat):
     """
-    récupère toute ce que le pc a fait en mémoire pour générer les arbres après 
+    récupère mémoire pour génération des arbres 
+    attention récursif = faire gestion des erreurs 
 
     """
     if not cat.origin: return {"word": cat.word, "cat": str(cat)}
@@ -226,9 +226,13 @@ def recup_strc_arbre(cat):
 
 def tree_to_html(tree, title, nb_tests=0):
     """
-    tranformer arbre e,tableau plat html
+    tranformer arbre en tableau plat html
     """
     def get_words(node):
+        """
+        pour récupérer les étiquettes à afficher
+
+        """
         if "word" in node: return [node]
         words = []
         for k in ["left", "mid", "right"]:
@@ -239,6 +243,7 @@ def tree_to_html(tree, title, nb_tests=0):
     n = len(words_list)
     grid, max_row = {}, 0
 
+    # en arrière plan ça transforme étiquette du et => ici remet celle originelle
     for i, w in enumerate(words_list):
         cat_disp = w["cat"]
         if w.get("word", "").lower().strip() == "et":
@@ -247,32 +252,33 @@ def tree_to_html(tree, title, nb_tests=0):
 
     def fill_grid(node):
         """
-        poour gérer le grid sinon ça fait n'imp
+        poour gérer le grid sinon ça fait nimp
         """
         nonlocal max_row
         if "word" in node: 
             return 0, next(i for i, w in enumerate(words_list) if w == node), 1
         
-        
         if "left" in node and "right" not in node and "mid" not in node:
             r1, c1, w1 = fill_grid(node["left"])
             row = r1 + 1
             grid[(row, c1)] = {"cat": node["result"], "width": w1, "rule": node["rule"]}
-            max_row = max(max_row, row); return row, c1, w1
-        
+            max_row = max(max_row, row); 
+            return row, c1, w1
         
         if "mid" in node: 
             r1, c1, w1 = fill_grid(node["left"]); r2, c2, w2 = fill_grid(node["mid"]); r3, c3, w3 = fill_grid(node["right"])
             row = max(r1, r2, r3) + 1
             grid[(row, c1)] = {"cat": node["result"], "width": w1+w2+w3, "rule": node["rule"]}
-            max_row = max(max_row, row); return row, c1, w1+w2+w3
+            max_row = max(max_row, row); 
+            return row, c1, w1+w2+w3
         
-        
+
         r1, c1, w1 = fill_grid(node["left"]); r2, c2, w2 = fill_grid(node["right"])
         row = max(r1, r2) + 1
         grid[(row, c1)] = {"cat": node["result"], "width": w1+w2, "rule": node["rule"]}
         max_row = max(max_row, row); return row, c1, w1+w2
 
+    # xx
     fill_grid(tree)
     
     # Intégration html 
@@ -357,6 +363,7 @@ global_style = """
 rapport = f"<!DOCTYPE html><html><head><meta charset='utf-8'>{global_style}</head><body>"
 rapport += "<h1>SORTIE TEST</h1>"
 
+# préparation des phrases de test
 for p in phrases_test:
     p_clean = p.replace(".", "").strip()
     words = p_clean.split()
@@ -369,17 +376,17 @@ for p in phrases_test:
     
     # récupération des  données 
     # visu succes
-    succes = [c for c in chart[0][n]["success"] if str(c) in ["S", "NP"]]
+    succes = [c for c in chart[0][n]["succes"] if str(c) in ["S", "NP"]]
     if succes:
-        rapport += "<h3 style='color:#00b894;'>SUCCESS /clap</h3>"
+        rapport += "<h3 style='color:#00b894;'>SUCCES /clap clap</h3>"
         for i, sol in enumerate(succes):
             rapport += tree_to_html(recup_strc_arbre(sol), f"Succès {i+1}/{len(succes)}")
     else:
         rapport += "<h3 style='color:#d63031;'>RIP</h3>"
 
     # echec
-    echecs = [c for c in chart[0][n]["success"] if str(c) not in ["S", "NP"]]
- # affichage échec => va au bout mais pas de S 
+    echecs = [c for c in chart[0][n]["succes"] if str(c) not in ["S", "NP"]]
+    # affichage échec => va au bout mais pas de S 
     if echecs:
         rapport += "<h3 style='color:#e17055;'>RIP</h3>"
         rapport += "<p style='font-size:0.9em; color:#555;'>ça arrivent au bout mais pas un S.</p>"
@@ -392,10 +399,10 @@ for p in phrases_test:
     for span in range(n - 1, 1, -1):
         for i_idx in range(n - span + 1):
             j_idx = i_idx + span
-            for cat in chart[i_idx][j_idx]["success"]:
+            for cat in chart[i_idx][j_idx]["succes"]:
                 abandon.append((i_idx, j_idx, cat))
 
-    # pour les abandon -> page trop longue donc menu déroulant ?
+    # pour les abandons -> page trop longue donc menu déroulant ?
     if abandon:
         rapport += f"""
         <details style='margin-top:20px; background:#fff; padding:15px; border:1px solid #dfe6e9; border-radius:5px; box-shadow: 0 2px 5px rgba(0,0,0,0.05);'>
