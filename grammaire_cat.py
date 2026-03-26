@@ -36,7 +36,7 @@ class Categories :
     
 
     # nettoyage du lexique + gestion parenthèse 
-def parse_cat_string(s, word=None):
+def clean_categories(s, word=None):
         s = s.strip()
         while s.startswith("(") and s.endswith(")"):
             depth, split = 0, True
@@ -62,7 +62,7 @@ def parse_cat_string(s, word=None):
             
     # récursivité = refait tout jusqu'à avoir plus rien    
         if split_idx != -1:
-            return Categories(parse_cat_string(s[:split_idx]), s[split_idx], parse_cat_string(s[split_idx+1:]), word=word)
+            return Categories(clean_categories(s[:split_idx]), s[split_idx], clean_categories(s[split_idx+1:]), word=word)
         return Categories(s, word=word)
 
 # Règles 
@@ -116,7 +116,7 @@ def prog_cat(sentence, lexicon, use_tr=True):
     for i, word in enumerate(words):
         if word in lexicon:
             for cat_str in lexicon[word]:
-                c = parse_cat_string(cat_str, word=word)
+                c = clean_categories(cat_str, word=word)
                 chart[i][i+1]["success"].append(c)
                 if use_tr:
                     tr = type_raising(c)
@@ -185,7 +185,7 @@ def get_best_fragment_sequence(chart, n):
 
 
 # on garde les échecs - construction 
-def build_failure_tree(fragments):
+def arbre_echec(fragments):
     """ 
     génère arbre de rupture 
     """
@@ -306,7 +306,7 @@ def tree_to_html(tree, title, nb_tests=0):
 
 
 
-# TEST 
+# TEST => mettre dans un autre fichier à ouvrir ?
 lexique_test= {
     "Garfield": ["NP"], "Mickey": ["NP"], "Minnie": ["NP"], "Jerry": ["NP"], 
     "Sylvestre": ["NP"], "chat": ["NP"], "souris": ["NP"],
