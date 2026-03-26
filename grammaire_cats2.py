@@ -399,6 +399,9 @@ phrases_test = charger_phrases("phrases.txt")
 
 
 # def du CSS à intégrer dans le html 
+
+
+
 global_style = r"""
 <style>
     body { font-family: sans-serif; background: #ffffff; padding: 40px; color:#2d3436; line-height: 1.5; }
