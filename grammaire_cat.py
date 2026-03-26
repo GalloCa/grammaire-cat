@@ -1,5 +1,6 @@
 import time
-import json 
+import json
+import tracemalloc
 
 # def de classe pour gestion de l'objet 
 
@@ -26,12 +27,50 @@ class Categories :
         r_str = str(self.right) if self.right.is_basic else f"({self.right})"
         return f"{l_str}{self.slash}{r_str}"
     
-# coordination => 
+# pour coordination
     def matches(self, other):
         if self.is_basic and self.left == "X": return True
         if other.is_basic and other.left == "X": return True
-        return str(self) == str(other)
+        return str(self).replace("(","").replace(")", "") == str(other).replace("(","").replace(")", "")
+
     
+# ------------ fin cat 
+def charger_phrases(filename):
+    phrases = []
+    try:
+        with open(filename, mode='r',encoding='utf-8') as f:
+            for ligne in f:
+                l = ligne.strip()
+                if l and not ligne.startswith("#"):
+                    phrases.append(l)
+    except FileNotFoundError :
+        print(f"Erreur : le fichier {filename} des phrases = non trouvé")
+    
+    return phrases
+
+def charger_lexique(filename):
+    lexique = {}
+    print(f"test")
+    with open(filename, 'r', encoding= 'utf-8') as f:
+        lignes = f.readline()
+        print(len(lignes))
+    try:
+        with open(filename, mode='r',encoding='utf-8') as f:
+            for ligne in f:
+                l = ligne.strip()
+                if l and l.startswith("#"):
+                    continue
+
+                if ":" in ligne:
+                    mot, cats = ligne.split(":",1)
+                    listes_cats = [c.strip() for c in cats.split(",")]
+                    lexique[mot.strip()] = listes_cats
+
+    except FileNotFoundError :
+        print(f"Erreur : le fichier {filename} des phrases = non trouvé")
+    except Exception as e:
+        print(f"erreur lecture du {filename}")
+    return lexique
 
 # nettoyage du lexique + gestion parenthèse 
 def clean_categories(s, word=None):
@@ -85,12 +124,19 @@ def appli_inverse(l, r):
 
 def compo_harmo(l, r):
     if l.slash == "/" and r.slash == "/" and l.right.matches(r.left):
-        return Categories(l.left, "/", r.right, origin=(l, r, ">B"))
+        return Categories(l.left, "/", r.right, origin=(l, r, "> B"))
+    return None
+
+def compo_harmo2(l,r):
+    if l.slash == "/" and r.slash == "/":
+        print(f"test >B : {l.right} vs {r.right}")
+        if l.right.matches(r.left):
+            return Categories(l.left, "/", r.right, origin=(l, r, "> B"))
     return None
 
 def compo_inverse(l, r):
     if r.slash == "\\" and l.slash == "\\" and r.right.matches(l.left):
-        return Categories(r.left, "\\", l.left, origin=(l, r, "<B"))
+        return Categories(r.left, "\\", l.left, origin=(l, r, "< B"))
     return None
 
 def type_raising(c):
@@ -104,11 +150,12 @@ def type_raising(c):
 
 def prog_cat(sentence, lexicon, use_tr=True):
     start_t = time.perf_counter() # prépare pour calcul temps
+    tracemalloc.start()
     words = sentence.split()
     n = len(words)
     
     # crée liste avec succes et 
-    chart = [[{"succes": [], "clashs": []} for _ in range(n + 1)] for _ in range(n + 1)]
+    chart = [[{"succes": [], "stop": []} for _ in range(n + 1)] for _ in range(n + 1)]
     nb_comb = 0
 
     for i, word in enumerate(words):
@@ -146,21 +193,28 @@ def prog_cat(sentence, lexicon, use_tr=True):
 
                         nb_comb += 1
                         found_rule = False
+
                         # On teste les règles
                         for res in [appli_norm(left, right), appli_inverse(left, right), 
-                                     compo_harmo(left, right), compo_inverse(left, right)]:
+                                     compo_harmo2(left, right), compo_inverse(left, right)]:
                             if res: 
                                 chart[i][j]["succes"].append(res)
                                 found_rule = True
                         
                         # SI RIEN NE MARCHE -> CLASH
                         if not found_rule:
-                            chart[i][j]["clashs"].append((left, right))
-                            
+      
+                            chart[i][j]["stop"].append((left, right))
+    # récupération tps / mémoire                     
     exec_t = (time.perf_counter() - start_t) * 1000
+    courant, pic = tracemalloc.get_traced_memory()
+    tracemalloc.stop()
+
+    pic_kb = pic / 1024
+
     # On cherche les succès finaux
     valid = [s for s in chart[0][n]["succes"] if str(s) in ["S", "NP"]]
-    return valid, nb_comb, exec_t, chart
+    return valid, nb_comb, exec_t, chart, pic_kb
 
 
 def recup_frag_abandon(chart, n):
@@ -313,35 +367,10 @@ def tree_to_html(tree, title, nb_tests=0):
 
 
 # TEST => mettre dans un autre fichier à ouvrir ?
-lexique_test= {
-    "Garfield": ["NP"], "Mickey": ["NP"], "Minnie": ["NP"], "Jerry": ["NP"], 
-    "Sylvestre": ["NP"], "chat": ["NP"], "souris": ["NP"],
-    "mange": ["S\\NP", "S\\NP/NP", "S\\NP/NP/NP"],
-    "manger": ["S\\NP", "S\\NP/NP", "S\\NP/NP/NP"],
-    "mangé": ["S\\NP", "S\\NP/NP", "S\\NP/NP/NP"],
-    "tue": ["S\\NP", "S\\NP/NP", "S\\NP/NP/NP"],
-    "dépiaute": ["S\\NP", "S\\NP/NP", "S\\NP/NP/NP"],
-    "attraper": ["S\\NP", "S\\NP/NP", "S\\NP/NP/NP"],
-    "dévore": ["S\\NP", "S\\NP/NP", "S\\NP/NP/NP"],
-    "va": ["(S\\NP)/(S\\NP)"], "a": ["(S\\NP)/(S\\NP)"], "devrait": ["(S\\NP)/(S\\NP)"],
-    "voracement": ["S\\S"], "le": ["NP/NP"], "la": ["NP/NP"], "et": ["X\\X/X"],
-    "que": ["(NP\\NP)/(S/NP)"] 
-}
-
-phrases_test = [
-    "Garfield mange",
-    "Garfield mange Mickey",
-    "Garfield mange Mickey et Minnie",
-    "le chat mange la souris",
-    "Garfield va manger Minnie",
-    "Garfield a mangé Minnie",
-    "Garfield va attraper et devrait manger Minnie",
-    "Garfield mange voracement Mickey",
-    "Garfield tue et Sylvestre dépiaute Jerry",
-    "Mickey que Garfield dévore",
-    "Un immense honneur et une grande fierté, après tant de jours de souffrance",
-    "lors de la cérémonie organisée par la Fédération Internationale de Football"
-]
+lexique_test= charger_lexique("base_lexicale.txt")
+print(lexique_test)
+phrases_test = charger_phrases("phrases.txt")
+print(phrases_test)
 
 # def du CSS à intégrer dans le html 
 global_style = """
@@ -369,10 +398,10 @@ for p in phrases_test:
     words = p_clean.split()
     n = len(words)
     
-    valid_sols, nb, t, chart = prog_cat(p_clean, lexique_test)
+    valid_sols, nb, t, chart, pic_kb = prog_cat(p_clean, lexique_test)
     
     rapport += f"<h2 style='margin-bottom: 5px;'>Phrase : « {p} »</h2>"
-    rapport += f"<p style='margin-top: 0; color: #636e72; font-size: 0.9em;'>Temps d'exécution : {t:.2f} ms | Combinaisons testées : {nb}</p>"
+    rapport += f"<p style='margin-top: 0; color: #636e72; font-size: 0.9em;'>Temps d'exécution : {t:.2f} ms | Combinaisons testées : {nb}</p> | Impact mémoire : {pic_kb:.2f} KB"
     
     # récupération des  données 
     # visu succes
@@ -407,7 +436,7 @@ for p in phrases_test:
         rapport += f"""
         <details style='margin-top:20px; background:#fff; padding:15px; border:1px solid #dfe6e9; border-radius:5px; box-shadow: 0 2px 5px rgba(0,0,0,0.05);'>
             <summary style='cursor:pointer; font-weight:bold; color:#0984e3; font-size:1.1em;'>
-                menu déroulant qui marche pour {len(abandon)} échec / abandon ? 
+                Arbres abandonnés {len(abandon)} abandon
             </summary>
             <div style='margin-top:20px; border-top: 1px dashed #ccc; padding-top:15px;'>
                 <p style='font-size:0.85em; color:#636e72;'>
@@ -428,16 +457,16 @@ for p in phrases_test:
         for i_idx in range(n - span + 1):
             j_idx = i_idx + span
             
-            if chart[i_idx][j_idx]["clashs"]:
+            if chart[i_idx][j_idx]["stop"]:
                 mots_segment = " ".join(words[i_idx:j_idx])
                 rapport += f"""
                 <details style='margin-bottom:5px; margin-left: 10px;'>
                     <summary style='color:#636e72; font-size:0.85em; cursor:pointer;'>
-                        Segment « {mots_segment} » : {len(chart[i_idx][j_idx]['clashs'])} rejets
+                        Segment « {mots_segment} » : {len(chart[i_idx][j_idx]['stop'])} avant stop ?
                     </summary>
                     <ul style='font-size:0.8em; color:#d63031; list-style-type: "ABANDON ";'>
                 """
-                for left, right in chart[i_idx][j_idx]["clashs"]:
+                for left, right in chart[i_idx][j_idx]["stop"]:
                     rapport += f"<li>marche pas <b>{left}</b> et <b>{right}</b></li>"
                 rapport += "</ul></details>"
                 

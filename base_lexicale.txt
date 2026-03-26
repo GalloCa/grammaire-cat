@@ -1,0 +1,22 @@
+Garfield : NP
+Mickey : NP
+Minnie : NP
+Jerry : NP
+Sylvestre : NP
+chat : NP
+souris : NP
+mange : S\NP, S\NP/NP, S\NP/NP/NP
+manger : S\NP, S\NP/NP, S\NP/NP/NP
+mangé : S\NP, S\NP/NP, S\NP/NP/NP
+tue : S\NP, S\NP/NP, S\NP/NP/NP
+dépiaute : S\NP, S\NP/NP, S\NP/NP/NP
+attraper : S\NP, S\NP/NP, S\NP/NP/NP
+dévore : S\NP, S\NP/NP, S\NP/NP/NP
+va : (S\NP)/(S\NP)
+a : (S\NP)/(S\NP)
+devrait : (S\NP)/(S\NP)
+voracement : S\S
+le : NP/NP
+la : NP/NP
+et : X\X/X
+que : (NP\NP)/(S/NP)
