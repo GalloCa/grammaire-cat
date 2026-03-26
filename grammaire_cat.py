@@ -33,6 +33,23 @@ class Categories :
         if other.is_basic and other.left == "X": return True
         return str(self).replace("(","").replace(")", "") == str(other).replace("(","").replace(")", "")
 
+    def matches2(self, other):
+        # Gestion du joker X (pour le "et")
+        if (self.is_basic and self.left == "X") or (other.is_basic and other.left == "X"):
+            return True
+        
+        # Si l'un est basique et l'autre non -> Échec
+        if self.is_basic != other.is_basic: 
+            return False
+        
+        # Si les deux sont basiques (S ou NP), on compare le contenu
+        if self.is_basic:
+            return self.left == other.left
+            
+        # Si ce sont des fonctions, on compare récursivement les 3 parties
+        return (self.slash == other.slash and 
+                self.left.matches(other.left) and 
+                self.right.matches(other.right))
     
 # ------------ fin cat 
 def charger_phrases(filename):
@@ -111,31 +128,31 @@ def substitute_x(template, concrete):
     return Categories(substitute_x(template.left, concrete), template.slash, substitute_x(template.right, concrete))
 
 def appli_norm(l, r):
-    if l.slash == "/" and l.right.matches(r):
+    if l.slash == "/" and l.right.matches2(r):
         res = substitute_x(l.left, r) if "X" in str(l) else l.left
         return Categories(res.left, res.slash, res.right, origin=(l, r, ">"))
     return None
 
 def appli_inverse(l, r):
-    if r.slash == "\\" and r.right.matches(l):
+    if r.slash == "\\" and r.right.matches2(l):
         res = substitute_x(r.left, l) if "X" in str(r) else r.left
         return Categories(res.left, res.slash, res.right, origin=(l, r, "<"))
     return None
 
 def compo_harmo(l, r):
-    if l.slash == "/" and r.slash == "/" and l.right.matches(r.left):
+    if l.slash == "/" and r.slash == "/" and l.right.matches2(r.left):
         return Categories(l.left, "/", r.right, origin=(l, r, "> B"))
     return None
 
 def compo_harmo2(l,r):
     if l.slash == "/" and r.slash == "/":
         print(f"test >B : {l.right} vs {r.right}")
-        if l.right.matches(r.left):
+        if l.right.matches2(r.left):
             return Categories(l.left, "/", r.right, origin=(l, r, "> B"))
     return None
 
 def compo_inverse(l, r):
-    if r.slash == "\\" and l.slash == "\\" and r.right.matches(l.left):
+    if r.slash == "\\" and l.slash == "\\" and r.right.matches2(l.left):
         return Categories(r.left, "\\", l.left, origin=(l, r, "< B"))
     return None
 
