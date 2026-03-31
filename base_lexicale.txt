@@ -7,6 +7,7 @@ chat : NP
 souris : NP
 mange : S\NP, S\NP/NP, S\NP/NP/NP
 manger : S\NP, S\NP/NP, S\NP/NP/NP
+mangent : S\NP, S\NP/NP, S\NP/NP/NP
 mangé : S\NP, S\NP/NP, S\NP/NP/NP
 tue : S\NP, S\NP/NP, S\NP/NP/NP
 dépiaute : S\NP, S\NP/NP, S\NP/NP/NP

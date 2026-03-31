@@ -9,3 +9,5 @@ Garfield mange voracement Mickey
 Garfield mange Mickey voracement 
 Garfield tue et Sylvestre dépiaute Jerry
 Mickey que Garfield dévore
+Mickey et Jerry que Garfield dévore voracement mangent
+Mickey et Jerry que Garfield dévore mangent voracement
