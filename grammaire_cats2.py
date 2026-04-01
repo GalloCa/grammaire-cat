@@ -315,13 +315,12 @@ def recup_frag_abandon(chart, n):
     test fct pour récup en mémoire les fragments abandonnés
 
     """
-    dp = {0: (0, [])} #  = (nombre_de_morceaux, liste_des_categories)
+    dp = {0: (0, [])} #  (nombre_de_morceaux, liste_des_categories)
     
     for j in range(1, n + 1):
         best = (float('inf'), [])
         for i in range(j):
             if i in dp and chart[i][j]["succes"]:
-                # pour le visuel
                 cat = chart[i][j]["succes"][0]
                 cand_cost = dp[i][0] + 1
                 if cand_cost < best[0]:
@@ -330,28 +329,6 @@ def recup_frag_abandon(chart, n):
         
     return dp[n][1]
 
-# 
-def arbre_echec(fragments):
-    """ 
-    génère arbre de rupture 
-    
-    """
-    if not fragments: 
-        return None
-    
-    trees = [recup_strc_arbre(cat) for cat in fragments]
-    while len(trees) > 1:
-        left = trees.pop(0)
-        right = trees.pop(0)
-        # visuel quand marche pas 
-        fake_node = {
-            "result": "<span style='color:#d63031; font-weight:bold;'>RUPTURE</span>", 
-            "rule": "NOPE", 
-            "left": left, 
-            "right": right
-        }
-        trees.insert(0, fake_node)
-    return trees[0]
 
 def recup_strc_arbre(cat):
     """
