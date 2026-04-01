@@ -103,12 +103,27 @@ def charger_lexique(filename):
         print(f"erreur lecture du {filename}")
     return lexique
 
-# nettoyage du lexique + gestion parenthèse inutle (comme fichier séparé maintenant plus besoin ??)
-def clean_categories(s, word=None):
-        """
-        Cette fonction nettoie le lexique, si trop de parenthèse ???
 
-        """
+def clean_categories(s, word=None):
+        r"""
+        Cette fonction transforme une chaîne de caractères 
+        en une structure arborescente d'objets 'Categories'.
+                    
+        Logique :
+        1.  Supprime les parenthèses redondantes si y'en a (ex: '((S\NP))' -> 'S\NP')
+        2. Identifie le connecteur principal (slash ou backslash) situé au niveau 0 
+            de nesting (hors parenthèses)
+        3. Divise la chaîne en deux et instancie les sous-catégories jusqu'à 
+            atteindre les catégories atomiques (S, NP, N, etc.). Attention récursivité ici.
+                    
+        Entrée :
+            s (str): La catégorie sous forme de texte (ex: "(S\NP)/NP").
+             word (str, optional): Le mot associé pour la traçabilité dans l'arbre.
+                        
+        Sortie :
+            Categories: Un objet CategoryCategorie (simple ou complexe)."""
+        
+        # Gestion des parenthèses
         s = s.strip()
         while s.startswith("(") and s.endswith(")"):
             depth, split = 0, True
@@ -119,11 +134,11 @@ def clean_categories(s, word=None):
             if split: s = s[1:-1].strip()
             else: 
                 break
-        
+        # Recherche catégorie simple (NP, S)
         if not any(c in s for c in ["/", "\\"]):
             return Categories(s, word=word)
         
-    # lecture pour trouver 1er item à droite par recherche de slash
+        # Cherche le \ ou / principal pour trouver 1ère catégorie à droite
         depth, split_idx = 0, -1
         for i in range(len(s)-1, -1, -1):
             if s[i] == ")": depth += 1
@@ -132,12 +147,14 @@ def clean_categories(s, word=None):
                 split_idx = i; 
                 break
             
-    # refait tout jusqu'à avoir plus rien (attention récursif mettre gestion erreur)
+        # Construction récursive de l'objet, construit les sous-catégorie jusqu'à arriver à S ou NP
         if split_idx != -1:
             return Categories(clean_categories(s[:split_idx]), s[split_idx], clean_categories(s[split_idx+1:]), word=word)
+        
         return Categories(s, word=word)
 
-# Règles 
+# REGLES
+
 # moule pour essayer de gérer le "et" sans avoir 10k entrées dans le lexique 
 def substitut_x(template, concrete):
     """
@@ -150,67 +167,103 @@ def substitut_x(template, concrete):
     return Categories(substitut_x(template.left, concrete), template.slash, substitut_x(template.right, concrete))
 
 def appli_norm(l, r):
+    """
+
+    """
     if l.slash == "/" and l.right.matches(r):
         res = substitut_x(l.left, r) if "X" in str(l) else l.left
         return Categories(res.left, res.slash, res.right, origin=(l, r, ">"))
     return None
 
 def appli_inverse(l, r):
+    """
+    
+    """
     if r.slash == "\\" and r.right.matches(l):
         res = substitut_x(r.left, l) if "X" in str(r) else r.left
         return Categories(res.left, res.slash, res.right, origin=(l, r, "<"))
     return None
 
 def compo_harmo(l, r):
+    """
+    
+    """
     if l.slash == "/" and r.slash == "/" :
         if l.right.matches(r.left):
             return Categories(l.left, "/", r.right, origin=(l, r, "> B"))
     return None
 
 def compo_inverse(l, r):
+    """
+    
+    """
     if r.slash == "\\" and l.slash == "\\":
         if r.right.matches(l.left):
             return Categories(r.left, "\\", l.left, origin=(l, r, "< B"))
     return None
 
 def type_raising(c):
+    """
+
+    """
     if c.is_basic and c.left == "NP":
         s = Categories("S")
         s_np = Categories(Categories("S"), "\\", Categories("NP"))
         return Categories(s, "/", s_np, origin=(c, None, "> T"))
     return None
 
-# Algo principal
 
+# ALGORITHME PRINCIPAL
 def prog_cat(sentence, lexicon, use_tr=True):
-    start_t = time.perf_counter() # prépare pour calcul temps
-    tracemalloc.start() # impact mémoire
+    r"""
+    L'algorithme remplit une table de hachage (chart) 
+    en combinant les catégories lexicales selon les règles d'application, de composition
+    et type-raising
+    
+
+    Entrées :
+        sentence (str): La phrase à analyser
+        lexicon (dict): Le dictionnaire contenant les catégories associées aux mots
+        use_tr (bool): Active ou désactive le Type-Raising (NP -> S/(S\NP))
+
+    Sortie :
+        tuple: (valid_sols, nb_comb, exec_time, full_chart, peak_memory)
+    """
+
+    # Mise en place d'un monitoring des performances (temps et mémoire)
+    start_t = time.perf_counter() 
+    tracemalloc.start() 
+
     words = sentence.split()
     n = len(words)
     
-    # crée liste avec succes et 
+    # Initialisation de la matrice chart
+        # Succes : catégories valides
+        # Stop : quand et où le programme stop pour débug / sortie 
     chart = [[{"succes": [], "stop": []} for _ in range(n + 1)] for _ in range(n + 1)]
     nb_comb = 0
 
-    # chargement lexique
+    # Remplissage de la matrice
     for i, word in enumerate(words):
         if word in lexicon:
             for cat_str in lexicon[word]:
                 c = clean_categories(cat_str, word=word)
                 chart[i][i+1]["succes"].append(c)
+                # Gestion type-rasing
                 if use_tr:
                     tr = type_raising(c)
                     if tr: chart[i][i+1]["succes"].append(tr)
         else:
+            # Gestion des mots inconnus
             chart[i][i+1]["succes"].append(Categories("???", word=word))
             
-    # boucle de recherche
+    # DEBUT BOUCLE DE RECHERCHE 
     for span in range(2, n + 1):
         for i in range(n - span + 1):
             j = i + span
             for k in range(i + 1, j):
 
-                # COORDINATION
+                # GESTION DU CAS DE LA COORDINATION
                 if j - i >= 3:
                     for k2 in range(k + 1, j):
                         for c1 in chart[i][k]["succes"]:
@@ -222,7 +275,7 @@ def prog_cat(sentence, lexicon, use_tr=True):
                                             res = Categories(c1.left, c1.slash, c1.right, origin=(c1, c2, c3, "<*>"))
                                             chart[i][j]["succes"].append(res)
 
-                # BINAIRE
+                # cAS GENERAL / REGLES BINAIRES 
                 for left in chart[i][k]["succes"]:
                     for right in chart[k][j]["succes"]:
                         if (left.word or '').lower() == 'et' or (right.word or '').lower() == 'et': 
@@ -231,29 +284,32 @@ def prog_cat(sentence, lexicon, use_tr=True):
                         nb_comb += 1
                         found_rule = False
 
-                        # On teste les règles
-                        for res in [appli_norm(left, right), appli_inverse(left, right), 
-                                     compo_harmo(left, right), compo_inverse(left, right)]:
+                        # Test séquentiel de nos règles combinatoires
+                        for res in [appli_norm(left, right), 
+                                    appli_inverse(left, right), 
+                                    compo_harmo(left, right), 
+                                    compo_inverse(left, right)]:
                             if res: 
                                 chart[i][j]["succes"].append(res)
                                 found_rule = True
                         
-                        # SI RIEN NE MARCHE -> Stop = trouve pas de règles/combinaison à appliquer 
+                        # Stockage des échecs pour l'affichage et analyse 
                         if not found_rule:
                             chart[i][j]["stop"].append((left, right))
 
-    # récupération tps / mémoire                     
+    # Module de récupération du temps et de la mémoire                  
     exec_t = (time.perf_counter() - start_t) * 1000
     courant, pic = tracemalloc.get_traced_memory()
     tracemalloc.stop()
-
     pic_kb = pic / 1024
-    # On cherche les succès finaux
-    valid = [s for s in chart[0][n]["succes"] if str(s) in ["S", "NP"]]
+
+    # Fitrage des résultats des succès : dérivation complète avec S en final
+    valid = [s for s in chart[0][n]["succes"] if str(s) == "S"]
 
     return valid, nb_comb, exec_t, chart, pic_kb
 
-# gestion dessin arbre 
+
+# RECUPERATION DES DONNEES PORU CONSTRUIRE LES ARBRES
 def recup_frag_abandon(chart, n):
     """ 
     test fct pour récup en mémoire les fragments abandonnés
@@ -274,7 +330,7 @@ def recup_frag_abandon(chart, n):
         
     return dp[n][1]
 
-# on garde les échecs - construction ?
+# 
 def arbre_echec(fragments):
     """ 
     génère arbre de rupture 
@@ -296,9 +352,6 @@ def arbre_echec(fragments):
         }
         trees.insert(0, fake_node)
     return trees[0]
-
-
-# Construction arbres 
 
 def recup_strc_arbre(cat):
     """
@@ -330,6 +383,7 @@ def recup_strc_arbre(cat):
             "right": recup_strc_arbre(r)
             }
 
+# GESTION DES ARBRES DE DERIVATION EN HTML
 def tree_to_html(tree, title, nb_tests=0, extra_class_cat="cat-with-bar"):
     if not tree:
         return ""
@@ -407,19 +461,19 @@ def tree_to_html(tree, title, nb_tests=0, extra_class_cat="cat-with-bar"):
                 html += f'<div class="cat">{cell["cat"]}</div></td>'
                 c += cell["width"]
             else: 
-                # Cellule vide : on prolonge le pointillé si on n'est pas tout en bas
+                # Cellule vide : on prolonge le pointillé si on n'est pas tout en bas -> MARCHE PAS A REVOIR
                 html += '<td class="empty-cell"></td>'
                 c += 1
         html += '</tr>'
     return html + '</table><hr>'
 
 
-# TEST => mettre dans un autre fichier à ouvrir ?
+# MAIN
 lexique_test= charger_lexique("base_lexicale.txt")
 phrases_test = charger_phrases("phrases.txt")
 
 
-# def du CSS à intégrer dans le html 
+# DEFINITION DU CSS DE NOTRE SORTIE HTML
 global_style = r"""
 <style>
     body { font-family: sans-serif; background: #ffffff; padding: 40px; color:#2d3436; line-height: 1.5; }
@@ -498,7 +552,7 @@ global_style = r"""
 </style>
 """
 
-# sortie
+# CREATION DU FICHIER HTML DE SORTIE
 rapport = f"<!DOCTYPE html><html><head><meta charset='utf-8'>{global_style}</head><body>"
 rapport += "<h1>Sortie ok - Style MEEEEEH</h1>"
 
@@ -518,25 +572,25 @@ for p in phrases_test:
         <div class="content">
     """
 
-    # gestion arbre succes
-    rapport += "<h3>DERIVATIONS : CLAP CLAP</h3>"
+    # Affichage des arbres de dérivation réussis
+    rapport += "<h3>DERIVATIONS : Phrases complètes (S)</h3>"
     if valid_sols:
         for i, sol in enumerate(valid_sols):
-            rapport += tree_to_html(recup_strc_arbre(sol), f"Dérivation {i+1}")
+            rapport += tree_to_html(recup_strc_arbre(sol), f"Dérivation n°{i+1}")
     else:
-        rapport += "<p>Aucune solution complète trouvée.</p>"
+        rapport += "<p>Aucune dérivation en S trouvée.</p>"
 
-    # gestion echec finaux
-    echecs_finaux = [c for c in chart[0][n]["succes"] if str(c) not in ["S", "NP"]]
-    rapport += "<h3>RIP : Structures complètes non-S</h3>"
+    # Affichage des échecs : ne trouve pas S à la fin de la dérivation complète
+    echecs_finaux = [c for c in chart[0][n]["succes"] if str(c) != "S"]
+    rapport += "<h3>ECHECS : Structures complètes finales mais non-S</h3>"
     if echecs_finaux:
         for i, sol in enumerate(echecs_finaux):
-            rapport += tree_to_html(recup_strc_arbre(sol), f"Structure finale {i+1} (Catégorie: {str(sol)})")
+            rapport += tree_to_html(recup_strc_arbre(sol), f"Structure finale n°{i+1} (Catégorie: {str(sol)})")
     else:
-        rapport += "<p>Aucune structure couvrant toute la phrase n'a abouti à une catégorie autre que S ou NP.</p>"
+        rapport += "<p>Structure de dérivation complète mais n'aboutissant pas à S.</p>"
 
-    # gestion arrêt intermédiare
-    rapport += "<h3>NOPE : a quitté le navire</h3>"
+    # Affichage des segments intermédiaire qui ont conduit à un arrêt
+    rapport += "<h3>SEGMENTS : Constituants intermédiaires abandonnés</h3>"
     found_abandon = False
     for span in range(n - 1, 1, -1):
         for i_idx in range(n - span + 1):
@@ -552,8 +606,10 @@ for p in phrases_test:
     rapport += "</div></details>"
                     
 rapport += "</body></html>"
+
 # Enregistrement final
 with open("test_sortie.html", "w", encoding="utf-8") as f:
     f.write(rapport)
 
-print("CLAP CLAP : Rapport généré dans 'test_sortie.html'")
+# Trace succès génération de fichier 
+print("Succès, le rapport généré : 'test_sortie.html'")

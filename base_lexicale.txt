@@ -17,7 +17,7 @@ va : (S\NP)/(S\NP)
 a : (S\NP)/(S\NP)
 devrait : (S\NP)/(S\NP)
 voracement : S\S
-le : NP/NP
+Le : NP/NP
 la : NP/NP
 et : X\X/X
 que : (NP\NP)/(S/NP)

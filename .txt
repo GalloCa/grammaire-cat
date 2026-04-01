@@ -15,3 +15,38 @@ lexique_test= {
     "voracement": ["S\\S"], "le": ["NP/NP"], "la": ["NP/NP"], "et": ["X\\X/X"],
     "que": ["(NP\\NP)/(S/NP)"] 
 }
+
+
+comments clean cat
+"""
+        Cette fonction transforme une chaîne de caractères 
+        en une structure arborescente d'objets 'Categories'.
+        
+        Logique :
+        1.  Supprime les parenthèses redondantes si y'en a (ex: '((S\NP))' -> 'S\NP')
+        2. Identifie le connecteur principal (slash ou backslash) situé au niveau 0 
+        de nesting (hors parenthèses)
+        3. Divise la chaîne en deux et instancie les sous-catégories jusqu'à 
+        atteindre les catégories atomiques (S, NP, N, etc.). Attention récursivité ici.
+        
+        Entrée :
+            s (str): La catégorie sous forme de texte (ex: "(S\NP)/NP").
+            word (str, optional): Le mot associé pour la traçabilité dans l'arbre.
+            
+        Sortie :
+            Categories: Un objet CategoryCategorie (simple ou complexe).
+        """
+
+comments prog_cat
+L'algorithme remplit une table de hachage (chart) 
+    en combinant les catégories lexicales selon les règles d'application, de composition
+    et type-raising
+    
+
+    Entrées :
+        sentence (str): La phrase à analyser
+        lexicon (dict): Le dictionnaire contenant les catégories associées aux mots
+        use_tr (bool): Active ou désactive le Type-Raising (NP -> S/(S\NP))
+
+    Sortie :
+        tuple: (valid_sols, nb_comb, exec_time, full_chart, peak_memory)
