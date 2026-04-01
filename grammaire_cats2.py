@@ -3,9 +3,7 @@ import tracemalloc
 
 # def de classe pour gestion de l'objet 
 
-class Categories : 
-
-    # constructeur de l'objet 
+class Categories :  
     """ 
     On veut ce qui est à gauche du slash = résultat attendu
     left = gauche du slash
@@ -20,7 +18,7 @@ class Categories :
         self.origin = origin 
         self.is_basic = slash is None
 
-#  parenthèse de lecture 
+#  Gestion parenthèse de lecture pour que la machine isole l'item recherché
     def __str__(self):
         if self.is_basic: 
             return str(self.left)
@@ -28,7 +26,7 @@ class Categories :
         r_str = str(self.right) if getattr(self.right, 'is_basic', False) else f"({self.right})"
         return f"{l_str}{self.slash}{r_str}"
     
-# pour coordination
+# Fonction de gestion de la coordination X\X/X
     def matches(self, other):
         
         if isinstance(other, str):
@@ -46,7 +44,7 @@ class Categories :
         if self.is_basic:
             return self.left == other.left
         
-        # comparaison récursive !!! boucle infinie
+        # comparaison récursive !!! boucle infinie si mal géré
         left_match = self.left.matches(other.left) if hasattr(self.left, 'matches') else (self.left == other.left)
         right_match = self.right.matches(other.right) if hasattr(self.right, 'matches') else (self.right == other.right)
         
@@ -55,6 +53,16 @@ class Categories :
 # ------------ fin classe ------
 
 def charger_phrases(filename):
+    """
+    Cette fonction permet de charger les phrases à analyser
+
+    Entrée :
+        filename (str) : nom du fichier en .txt
+    
+    Sortie : 
+        phrases (liste) : 
+
+    """
     phrases = []
     try:
         with open(filename, mode='r',encoding='utf-8') as f:
@@ -66,7 +74,16 @@ def charger_phrases(filename):
         print(f"Erreur : le fichier {filename} des phrases = non trouvé")
     return phrases
 
+
 def charger_lexique(filename):
+    """
+    Cette fonction permet de charger le lexique
+
+    Entrée : 
+        filename (str) : nom du fichier en .txt
+    Sortie:
+        lexique (dictionnaire) :
+    """
     lexique = {}
     with open(filename, 'r', encoding= 'utf-8') as f:
         lignes = f.readline()
@@ -88,6 +105,10 @@ def charger_lexique(filename):
 
 # nettoyage du lexique + gestion parenthèse inutle (comme fichier séparé maintenant plus besoin ??)
 def clean_categories(s, word=None):
+        """
+        Cette fonction nettoie le lexique, si trop de parenthèse ???
+
+        """
         s = s.strip()
         while s.startswith("(") and s.endswith(")"):
             depth, split = 0, True
