@@ -50,3 +50,8 @@ L'algorithme remplit une table de hachage (chart)
 
     Sortie :
         tuple: (valid_sols, nb_comb, exec_time, full_chart, peak_memory)
+
+
+
+# Pas de pointillé sous le S final (dernière ligne)
+                current_class = extra_class_cat if r < max_row else ""

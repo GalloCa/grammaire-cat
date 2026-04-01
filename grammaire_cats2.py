@@ -422,26 +422,30 @@ def tree_to_html(tree, title, nb_tests=0, extra_class_cat="cat-with-bar"):
     
     # Lignes de dérivation
     for r in range(max_row + 1):
-        html += '<tr>'
+        row_class = "last_row" if r == max_row else ""
+        html += f'<tr class="{row_class}">'
         c = 0
+
         while c < n:
             if (r, c) in grid:
                 cell = grid[(r, c)]
                 label = (cell["rule"] or "").replace("<", "&lt;").replace(">", "&gt;")
-                
-                # Pas de pointillé sous le S final (dernière ligne)
-                current_class = extra_class_cat if r < max_row else ""
-                
-                html += f'<td colspan="{cell["width"]}" class="{current_class}">'
+                   
+                html += f'<td colspan="{cell["width"]}" class="{label}">'
                 if cell["rule"]: 
                     html += f'<div class="line"><span class="rule">{label}</span></div>'
                 html += f'<div class="cat">{cell["cat"]}</div></td>'
                 c += cell["width"]
+
             else: 
                 # Cellule vide : on prolonge le pointillé si on n'est pas tout en bas -> MARCHE PAS A REVOIR
-                html += '<td class="empty-cell"></td>'
+                if r < max_row:
+                    html += '<td class="empty-cell"></td>'
+                else :
+                    html += '<td></td>'
                 c += 1
         html += '</tr>'
+
     return html + '</table><hr>'
 
 
@@ -502,7 +506,7 @@ global_style = r"""
 
     .empty-cell {
         background-image: linear-gradient(to bottom, #2d3436 50%, transparent 50%) !important;
-        background-size: 3px 12px;
+        background-size: 2px 10px;
         background-position: center top;
         background-repeat: repeat-y;
     }
@@ -585,8 +589,8 @@ for p in phrases_test:
 rapport += "</body></html>"
 
 # Enregistrement final
-with open("test_sortie.html", "w", encoding="utf-8") as f:
+with open("dérivation_gram_cat.html", "w", encoding="utf-8") as f:
     f.write(rapport)
 
 # Trace succès génération de fichier 
-print("Succès, le rapport généré : 'test_sortie.html'")
+print("Succès, le rapport généré : 'dérivation_gram_cat.html'")
