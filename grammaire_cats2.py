@@ -590,7 +590,7 @@ for p in phrases_test:
 rapport += "</body></html>"
 
 # Enregistrement final
-with open("dérivation_gram_cat.html", "w", encoding="utf-8") as f:
+with open("dérivation_gram_cat2.html", "w", encoding="utf-8") as f:
     f.write(rapport)
 
 # Trace succès génération de fichier 

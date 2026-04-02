@@ -119,7 +119,7 @@ def clean_categories(s, word=None):
                     
         Entrée :
             s (str): La catégorie sous forme de texte (ex: "(S\NP)/NP").
-             word (str, optional): Le mot associé pour la traçabilité dans l'arbre.
+            word (str, optional): Le mot associé pour la traçabilité dans l'arbre.
                         
         Sortie :
             Categories: Un objet CategoryCategorie (simple ou complexe)."""
@@ -498,86 +498,87 @@ def tree_to_html(tree, title, **kwargs):
     return f"<div class='derivation'><h3>{title}</h3>{svg_tag}</div><hr>"
 
 # MAIN
-lexique_test= charger_lexique("lexique_gorafi.txt")
-phrases_test = charger_phrases("phrases_gorafi.txt")
+lexique_test= charger_lexique("base_lexicale.txt")
+phrases_test = charger_phrases("phrases.txt")
 
 
 # DEFINITION DU CSS DE NOTRE SORTIE HTML
 global_style = r"""
 <style>
-    body { font-family: sans-serif; background: #ffffff; padding: 40px; color:#2d3436; line-height: 1.5; }
-    h1 { border-bottom: 2px solid #2d3436; padding-bottom: 10px; margin-bottom: 30px; }
-    .phrase-container { margin-bottom: 30px; border: 1px solid #ccc; border-radius: 4px; }
-    summary { padding: 15px; cursor: pointer; font-weight: bold; background: #f8f9fa; border-bottom: 1px solid #ccc; font-size: 1.2em; }
-    .content { padding: 20px; }
-    .stats-text { font-weight: normal; color: #636e72; margin-left: 20px; font-size: 0.8em; }
-    .ccg { border-collapse: collapse; margin: 40px 0; }
-    .ccg td { 
-        text-align: center; 
-        vertical-align: top; 
-        padding: 0; 
-        min-width: 150px; 
-        background-image: none !important; 
-    }
-    .word { 
-        font-weight: bold; 
-        font-size: 1.5em; 
-        padding: 20px 10px 50px 10px !important; /* 50px de vide sous les mots */
-        background: white;
-        position: relative;
-        z-index: 10;
-    }
-    .cat { 
-        font-family: monospace; 
-        font-size: 1.2em; 
-        margin-bottom: 35px; 
-        padding: 8px 15px;
-        background: white;
-        position: relative;
-        z-index: 10;
-        display: inline-block;
-    }
+    body { font-family: sans-serif; background: #ffffff; padding: 40px; color: #2d3436; }
+h1 { border-bottom: 2px solid #2d3436; padding-bottom: 10px; margin-bottom: 30px; }
+.phrase-container { margin-bottom: 30px; border: 1px solid #ccc; border-radius: 4px; }
+summary { padding: 15px; cursor: pointer; font-weight: bold; background: #f8f9fa; border-bottom: 1px solid #ccc; font-size: 1.2em; }
+.content { padding: 20px; }
+.stats-text { font-weight: normal; color: #636e72; margin-left: 20px; font-size: 0.8em; }
 
-    /* Pointillé vertical - pas encore ça*/
-    .cat-with-bar .cat::after {
-        content: "";
-        position: absolute;
-        bottom: -35px; 
-        left: 50%;
-        transform: translateX(-50%);
-        width: 3px;
-        height: 35px;
-        background-image: linear-gradient(to bottom, #2d3436 50%, transparent 50%);
-        background-size: 3px 12px;
-        display: block;
-    }
+/* ── Table CCG ── */
+table.ccg { border-collapse: collapse; margin: 32px 0; }
 
-    .empty-cell {
-        background-image: linear-gradient(to bottom, #2d3436 50%, transparent 50%) !important;
-        background-size: 2px 10px;
-        background-position: center top;
-        background-repeat: repeat-y;
-    }
-    /* ligne règle */
-    .line { 
-        border-top: 3px solid #2d3436; 
-        position: relative; 
-        z-index: 20; 
-        margin: 0 10px; 
-        height: 15px; 
-    }
+/* Mots */
+td.word {
+  font-weight: bold;
+  font-size: 1.4em;
+  text-align: center;
+  padding: 16px 18px 0 18px;
+  vertical-align: bottom;
+}
 
-    /* visu règles */
-    .rule { 
-        position: absolute; 
-        right: -25px; 
-        top: -16px; 
-        background: white; 
-        padding: 0 6px; 
-        font-size: 1.1em; 
-        font-weight: bold;
-        color: #d63031; 
-    }
+/* Rangée lexicale */
+td.lex {
+  text-align: center;
+  vertical-align: top;
+  padding: 0 12px;
+}
+
+/* Rangée de dérivation */
+td.deriv {
+  text-align: center;
+  vertical-align: top;
+  padding: 0 4px;
+}
+
+/* Pointillé vertical (connexion mot→catégorie et catégorie→barre) */
+.stem {
+  width: 1px;
+  height: 28px;
+  margin: 0 auto;
+  background: repeating-linear-gradient(
+    to bottom,
+    #636e72 0, #636e72 4px,
+    transparent 4px, transparent 8px
+  );
+}
+
+/* Barre horizontale de règle */
+.rule-bar {
+  border-top: 2.5px solid #2d3436;
+  margin: 0 auto;
+  position: relative;
+  height: 0;
+}
+
+/* Étiquette de règle (>, <B, …) */
+.rule-label {
+  position: absolute;
+  right: -30px;
+  top: -12px;
+  font-size: 0.95em;
+  font-weight: bold;
+  color: #d63031;
+  background: #fff;
+  padding: 0 4px;
+  white-space: nowrap;
+}
+
+/* Catégorie */
+.cat {
+  font-family: monospace;
+  font-size: 1.1em;
+  padding: 6px 12px 4px;
+  white-space: nowrap;
+  display: inline-block;
+}
 </style>
 """
 
@@ -637,8 +638,8 @@ for p in phrases_test:
 rapport += "</body></html>"
 
 # Enregistrement final
-with open("dérivation_gram_cat_gorafi.html", "w", encoding="utf-8") as f:
+with open("dérivation_gram_cat.html", "w", encoding="utf-8") as f:
     f.write(rapport)
 
 # Trace succès génération de fichier 
-print("Succès, le rapport généré : 'dérivation_gram_cat_gorafi.html'")
+print("Succès, le rapport généré : 'dérivation_gram_cat.html'")
