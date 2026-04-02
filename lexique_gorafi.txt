@@ -1,0 +1,35 @@
+Nicolas : NP
+Sarkozy : NP\NP
+reçoit : S\NP/NP
+intervient : S\NP
+le : NP/NP
+la : NP/NP
+Cette : NP/NP
+Un : NP/NP
+une : NP/NP
+“ : NP/NP
+” : NP\NP
+« : NP/NP
+» : NP\NP
+prix : NP
+de : NP\NP/NP
+littérature : NP
+FIFA : NP
+cérémonie : NP
+à :  NP\NP/NP
+peine : NP
+semaine :NP
+après : NP\NP/NP
+remise : NP
+du :NP\NP/NP
+paix : NP
+Donald : NP
+Trump : NP\NP
+immense : NP/NP
+honneur : NP
+et : X\X/X
+grande : NP/NP
+fierté : NP/NP
+tant : S/S
+jour : NP
+souffrance : NP
