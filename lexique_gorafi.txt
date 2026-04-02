@@ -1,36 +1,41 @@
 Nicolas : NP
 Sarkozy : NP\NP
-reçoit : S\NP/NP
-intervient : S\NP
+reçoit : (S\NP)/NP
 le : NP/NP
-la : NP/NP
-Cette : NP/NP
-Un : NP/NP
-une : NP/NP
-“ : NP/NP
-” : NP\NP
-« : NP/NP
-» : NP\NP
 prix : NP
 de : NP\NP/NP
 littérature : NP
+la : NP/NP
 FIFA : NP
-cérémonie : NP
-à :  NP\NP/NP
-peine : NP
-semaine :NP
-après : NP\NP/NP
-remise : NP
-du :NP\NP/NP
-paix : NP
-Donald : NP
-Trump : NP\NP
+
+Un : NP/NP
 immense : NP/NP
 honneur : NP
 et : X\X/X
+une : NP/NP
 grande : NP/NP
-fierté : NP/NP
+fierté : NP
+après : NP\NP/NP
 tant : S/S
 jour : NP
 souffrance : NP
+
+
+Cette : NP/NP
+cérémonie : NP
+intervient : S\NP
+à :  NP\NP/NP
+peine : NP
+semaine :NP
+remise : NP
+du : NP\NP/NP
+paix : NP
+Donald : NP
+Trump : NP\NP
+
+
+
+
+
+
 

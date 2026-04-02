@@ -119,7 +119,7 @@ def clean_categories(s, word=None):
                     
         Entrée :
             s (str): La catégorie sous forme de texte (ex: "(S\NP)/NP").
-            word (str, optional): Le mot associé pour la traçabilité dans l'arbre.
+             word (str, optional): Le mot associé pour la traçabilité dans l'arbre.
                         
         Sortie :
             Categories: Un objet CategoryCategorie (simple ou complexe)."""
@@ -451,8 +451,8 @@ def tree_to_html(tree, title, nb_tests=0, extra_class_cat="cat-with-bar"):
 
 
 # MAIN
-lexique_test= charger_lexique("base_lexicale.txt")
-phrases_test = charger_phrases("phrases.txt")
+lexique_test= charger_lexique("lexique_gorafi.txt")
+phrases_test = charger_phrases("phrases_gorafi.txt")
 
 
 # DEFINITION DU CSS DE NOTRE SORTIE HTML
@@ -590,8 +590,8 @@ for p in phrases_test:
 rapport += "</body></html>"
 
 # Enregistrement final
-with open("dérivation_gram_cat.html", "w", encoding="utf-8") as f:
+with open("dérivation_gram_cat_gorafi.html", "w", encoding="utf-8") as f:
     f.write(rapport)
 
 # Trace succès génération de fichier 
-print("Succès, le rapport généré : 'dérivation_gram_cat.html'")
+print("Succès, le rapport généré : 'dérivation_gram_cat_gorafi.html'")

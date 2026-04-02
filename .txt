@@ -55,3 +55,8 @@ L'algorithme remplit une table de hachage (chart)
 
 # Pas de pointillé sous le S final (dernière ligne)
                 current_class = extra_class_cat if r < max_row else ""
+
+
+Nicolas Sarkozy recoit le prix de littérature de la FIFA
+Cette cérémonie intervient à peine une semaine après la remise du prix de la paix de la FIFA à Donald Trump
+Un immense honneur et une grande fierté, après tant de jour de souffrance
