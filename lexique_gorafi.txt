@@ -33,3 +33,4 @@ fierté : NP/NP
 tant : S/S
 jour : NP
 souffrance : NP
+
