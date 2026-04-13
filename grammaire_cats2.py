@@ -200,7 +200,7 @@ def compo_inverse(l, r):
     """
     if r.slash == "\\" and l.slash == "\\":
         if r.right.matches(l.left):
-            return Categories(r.left, "\\", l.left, origin=(l, r, "< B"))
+            return Categories(r.left, "\\", l.right, origin=(l, r, "< B"))
     return None
 
 def type_raising(c):
@@ -590,7 +590,7 @@ for p in phrases_test:
 rapport += "</body></html>"
 
 # Enregistrement final
-with open("dérivation_gram_cat2.html", "w", encoding="utf-8") as f:
+with open("dérivation_gram_cat3.html", "w", encoding="utf-8") as f:
     f.write(rapport)
 
 # Trace succès génération de fichier 

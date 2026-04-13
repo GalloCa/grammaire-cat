@@ -200,7 +200,7 @@ def compo_inverse(l, r):
     """
     if r.slash == "\\" and l.slash == "\\":
         if r.right.matches(l.left):
-            return Categories(r.left, "\\", l.left, origin=(l, r, "< B"))
+            return Categories(r.left, "\\", l.right, origin=(l, r, "< B"))
     return None
 
 def type_raising(c):
