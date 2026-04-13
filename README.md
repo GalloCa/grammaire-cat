@@ -1,4 +1,4 @@
-**CCG-Parser : Analyseur de Grammaires Catégorielles**
+**(WIP) -- CCG-Parser : Analyseur de Grammaires Catégorielles**
 
 Ce projet implémente un analyseur syntaxique basé sur les Grammaires Catégorielles Combinatoires (CCG). Il permet de transformer des énoncés en langage naturel en structures formelles de dérivation en utilisant un algorithme de type Chart Parsing.
 
