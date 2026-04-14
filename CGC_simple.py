@@ -373,26 +373,28 @@ def tree_to_html(tree, title, **kwargs):
     if not tree:
         return ""
 
-    # ── CONFIGURATION & STYLE (Centralisé pour ton analyse critique) ──
+    # CONFIGURATION & STYLE
     cfg = {
-        "col_w": 150,        # Largeur par mot
-        "row_h": 70,         # Espace entre deux niveaux de dérivation
-        "lex_h": 60,         # Hauteur de la zone lexicale
-        "word_y": 30,        # Position Y des mots
-        "bar_width": 2.5,    # Épaisseur des barres de règle
+        "col_w": 150,        
+        "row_h": 70,         
+        "lex_h": 60,         
+        "word_y": 30,        
+        "bar_width": 2.5,    
         "colors": {
             "stem": "#636e72",
             "bar": "#2d3436",
             "rule": "#d63031",
             "word": "#2d3436",
             "cat": "#2d3436",
-            "final": "#0984e3" # Une petite touche de bleu pour le S final ?
+            "final": "#0984e3" #  bleu pour le S final ?
         },
         "dash": "4,4"
     }
 
-    # ── 1. RÉCUPÉRATION DES FEUILLES (Mots) ──
+    
     def get_leaves(node):
+        """
+        """
         if "word" in node: return [node]
         leaves = []
         for k in ("left", "mid", "right"):
@@ -408,6 +410,8 @@ def tree_to_html(tree, title, **kwargs):
     cells = []
 
     def layout(node):
+        """
+        """
         if "word" in node:
             col = leaf_col[id(node)]
             return 0, col, 1, (col + 0.5) * cfg["col_w"], cfg["word_y"] + cfg["lex_h"]  # row, col, span, cx, bottom_y # row, col, span, x_center
@@ -438,24 +442,24 @@ def tree_to_html(tree, title, **kwargs):
 
     max_row, _, _, _, _ = layout(tree)
 
-    # ── 3. GÉNÉRATION SVG ──
+    # GÉNÉRATION SVG 
     total_h = cfg["word_y"] + cfg["lex_h"] + (max_row * cfg["row_h"]) + 40
     total_w = n * cfg["col_w"] + 80
     
     elements = []
     
-    # Helper pour le texte SVG
+    # 
     def svg_text(x, y, text, size=14, weight="normal", color="#000", anchor="middle"):
         clean_txt = str(text).replace("<", "&lt;").replace(">", "&gt;")
         return f'<text x="{x}" y="{y}" text-anchor="{anchor}" font-size="{size}" font-weight="{weight}" fill="{color}">{clean_txt}</text>'
 
-    # Helper pour les lignes
+    # 
     def svg_line(x1, y1, x2, y2, color, width=1, dash=None):
         style = f'stroke:{color};stroke-width:{width}'
         if dash: style += f';stroke-dasharray:{dash}'
         return f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" style="{style}" />'
 
-    # --- Rendu des mots et catégories lexicales ---
+    # Rendu des mots et catégories lexicales 
     lex_cat_y = cfg["word_y"] + cfg["lex_h"]
     for i, lf in enumerate(leaves):
         cx = (i + 0.5) * cfg["col_w"]
@@ -468,9 +472,8 @@ def tree_to_html(tree, title, **kwargs):
         if (lf.get("word") or "").lower() == "et": cat = r"X\X/X"
         elements.append(svg_text(cx, lex_cat_y, cat, size=13, color=cfg["colors"]["cat"]))
 
-    # --- Rendu des dérivations ---
+    # Rendu des dérivations 
     def get_y(row, part="bar"):
-        # On inverse row pour que 1 soit en bas
         base_y = lex_cat_y + 10 + (row - 1) * cfg["row_h"]
         return base_y + 20 if part == "bar" else base_y + 45
 
@@ -478,41 +481,44 @@ def tree_to_html(tree, title, **kwargs):
         r_y_bar = get_y(c["row"], "bar")
         r_y_cat = get_y(c["row"], "cat")
         
-        # 1. Pointillés montants des enfants
+        # Pointillés montants des enfants
         for sx, sy in c["stems"]:
             elements.append(svg_line(sx, sy, sx, r_y_bar, cfg["colors"]["stem"], dash=cfg["dash"]))
 
         x1, x2 = min(s[0] for s in c["stems"]), max(s[0] for s in c["stems"])
 
-        # 2. Barre de règle
+        # Barre de règle
         if x1 == x2: x1, x2 = x1 - 30, x2 + 30 # Type-raising
         elements.append(svg_line(x1, r_y_bar, x2, r_y_bar, cfg["colors"]["bar"], width=cfg["bar_width"]))
         
-        # 3. Étiquette de règle
+        # Étiquette de règle
         elements.append(svg_text(x2 + 8, r_y_bar + 5, c["rule"], size=11, weight="bold", color=cfg["colors"]["rule"], anchor="start"))
 
-        # 4. Pointillé vers le résultat
+        # Pointillé vers le résultat
         elements.append(svg_line(c["cx"], r_y_bar, c["cx"], r_y_cat - 15, cfg["colors"]["stem"], dash=cfg["dash"]))
 
-        # 5. Texte Résultat
+        # Texte Résultat
         is_final = (c["cat"] == "S" and c["row"] == max_row)
         color = cfg["colors"]["final"] if is_final else cfg["colors"]["cat"]
         weight = "bold" if is_final else "normal"
         elements.append(svg_text(c["cx"], r_y_cat, c["cat"], size=14, weight=weight, color=color))
 
-    # --- Assemblage final ---
+    # Assemblage final
     svg_content = "\n  ".join(elements)
     svg_tag = f'<svg width="{total_w}" height="{total_h}" viewBox="0 0 {total_w} {total_h}" xmlns="http://www.w3.org/2000/svg" style="background:white; display:block; margin:auto;">\n  {svg_content}\n</svg>'
     
     return f"<div class='derivation'><h3>{title}</h3>{svg_tag}</div><hr>"
 
 def get_phrase_line_graph(stats_evolution):
+    """
+    
+    """
     if not stats_evolution: return ""
     
     # Extraction des données
     spans, temps, combs, mems = zip(*stats_evolution)
     
-    # Création de la figure (3 subplots comme ton graph global)
+    # Création de la figure 
     fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(15, 4))
     
     # Graph 1 : Temps
@@ -521,13 +527,13 @@ def get_phrase_line_graph(stats_evolution):
     ax1.set_xlabel("Longueur du span")
     ax1.grid(True, alpha=0.3)
 
-    # Graph 2 : Unifications (Explosion )
+    # Graph 2 : Unifications 
     ax2.plot(spans, combs, color='#0984e3', marker='s', linewidth=2)
     ax2.set_title("Cumul Unifications")
     ax2.set_xlabel("Longueur du span")
     ax2.grid(True, alpha=0.3)
 
-    # Graph 3 : Mémoire (Parcours coûteux [cite: 36])
+    # Graph 3 : Mémoire 
     ax3.plot(spans, mems, color='#00b894', marker='^', linewidth=2)
     ax3.set_title("Pic Mémoire (KB)")
     ax3.set_xlabel("Longueur du span")
