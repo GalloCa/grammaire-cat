@@ -1,5 +1,8 @@
 import time
 import tracemalloc
+import base64
+import io
+import matplotlib.pyplot as plt 
 
 # def de classe pour gestion de l'objet 
 
@@ -119,7 +122,7 @@ def clean_categories(s, word=None):
                     
         Entrée :
             s (str): La catégorie sous forme de texte (ex: "(S\NP)/NP").
-             word (str, optional): Le mot associé pour la traçabilité dans l'arbre.
+            word (str, optional): Le mot associé pour la traçabilité dans l'arbre.
                         
         Sortie :
             Categories: Un objet CategoryCategorie (simple ou complexe)."""
@@ -237,6 +240,7 @@ def prog_cat(sentence, lexicon, use_tr=True):
 
     words = sentence.split()
     n = len(words)
+    stats_evolution = []
     
     # Initialisation de la matrice chart
         # Succes : catégories valides
@@ -297,17 +301,20 @@ def prog_cat(sentence, lexicon, use_tr=True):
                         # Stockage des échecs pour l'affichage et analyse 
                         if not found_rule:
                             chart[i][j]["stop"].append((left, right))
+        current_t = (time.perf_counter() - start_t) * 1000
+        _, pic = tracemalloc.get_traced_memory()
+        stats_evolution.append((span, current_t, nb_comb, pic / 1024))
 
     # Module de récupération du temps et de la mémoire                  
     exec_t = (time.perf_counter() - start_t) * 1000
-    courant, pic = tracemalloc.get_traced_memory()
+    _, pic = tracemalloc.get_traced_memory()
     tracemalloc.stop()
     pic_kb = pic / 1024
 
     # Fitrage des résultats des succès : dérivation complète avec S en final
     valid = [s for s in chart[0][n]["succes"] if str(s) == "S"]
 
-    return valid, nb_comb, exec_t, chart, pic_kb
+    return valid, nb_comb, exec_t, chart, pic_kb, stats_evolution
 
 
 # RECUPERATION DES DONNEES PORU CONSTRUIRE LES ARBRES
@@ -403,18 +410,20 @@ def tree_to_html(tree, title, **kwargs):
     def layout(node):
         if "word" in node:
             col = leaf_col[id(node)]
-            return 0, col, 1, (col + 0.5) * cfg["col_w"] # row, col, span, x_center
+            return 0, col, 1, (col + 0.5) * cfg["col_w"], cfg["word_y"] + cfg["lex_h"]  # row, col, span, cx, bottom_y # row, col, span, x_center
 
         # Calcul récursif des enfants
         children = [node[k] for k in ("left", "mid", "right") if node.get(k)]
         child_res = [layout(c) for c in children]
 
         # Logique de positionnement
-        my_row = max(r for r, _, _, _ in child_res) + 1
-        col_min = min(c for _, c, _, _ in child_res)
-        col_max = max(c + w - 1 for _, c, w, _ in child_res)
+        my_row = max(r for r, _, _, _, _ in child_res) + 1
+        col_min = min(c for _, c, _, _, _ in child_res)
+        col_max = max(c + w - 1 for _, c, w, _, _ in child_res)
         my_span = col_max - col_min + 1
         my_cx = (col_min + my_span / 2) * cfg["col_w"]
+
+        my_bottom_y = cfg["word_y"] + cfg["lex_h"] + 10 + (my_row - 1) * cfg["row_h"] + 45
 
         cells.append({
             "row": my_row,
@@ -422,12 +431,12 @@ def tree_to_html(tree, title, **kwargs):
             "span": my_span,
             "cat": node.get("result", "???"),
             "rule": node.get("rule", ""),
-            "stems_x": [cx for _, _, _, cx in child_res],
+            "stems": [(cx, by) for _, _, _, cx, by in child_res],
             "is_final": (node.get("result") == "S") 
         })
-        return my_row, col_min, my_span, my_cx
+        return my_row, col_min, my_span, my_cx, my_bottom_y
 
-    max_row, _, _, _ = layout(tree)
+    max_row, _, _, _, _ = layout(tree)
 
     # ── 3. GÉNÉRATION SVG ──
     total_h = cfg["word_y"] + cfg["lex_h"] + (max_row * cfg["row_h"]) + 40
@@ -470,12 +479,12 @@ def tree_to_html(tree, title, **kwargs):
         r_y_cat = get_y(c["row"], "cat")
         
         # 1. Pointillés montants des enfants
-        child_y_start = lex_cat_y + 5 if c["row"] == 1 else get_y(c["row"]-1, "cat") + 5
-        for sx in c["stems_x"]:
-            elements.append(svg_line(sx, child_y_start, sx, r_y_bar, cfg["colors"]["stem"], dash=cfg["dash"]))
+        for sx, sy in c["stems"]:
+            elements.append(svg_line(sx, sy, sx, r_y_bar, cfg["colors"]["stem"], dash=cfg["dash"]))
+
+        x1, x2 = min(s[0] for s in c["stems"]), max(s[0] for s in c["stems"])
 
         # 2. Barre de règle
-        x1, x2 = min(c["stems_x"]), max(c["stems_x"])
         if x1 == x2: x1, x2 = x1 - 30, x2 + 30 # Type-raising
         elements.append(svg_line(x1, r_y_bar, x2, r_y_bar, cfg["colors"]["bar"], width=cfg["bar_width"]))
         
@@ -497,87 +506,126 @@ def tree_to_html(tree, title, **kwargs):
     
     return f"<div class='derivation'><h3>{title}</h3>{svg_tag}</div><hr>"
 
+def get_phrase_line_graph(stats_evolution):
+    if not stats_evolution: return ""
+    
+    # Extraction des données
+    spans, temps, combs, mems = zip(*stats_evolution)
+    
+    # Création de la figure (3 subplots comme ton graph global)
+    fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(15, 4))
+    
+    # Graph 1 : Temps
+    ax1.plot(spans, temps, color='#d63031', marker='o', linewidth=2)
+    ax1.set_title("Évolution Temps (ms)")
+    ax1.set_xlabel("Longueur du span")
+    ax1.grid(True, alpha=0.3)
+
+    # Graph 2 : Unifications (Explosion )
+    ax2.plot(spans, combs, color='#0984e3', marker='s', linewidth=2)
+    ax2.set_title("Cumul Unifications")
+    ax2.set_xlabel("Longueur du span")
+    ax2.grid(True, alpha=0.3)
+
+    # Graph 3 : Mémoire (Parcours coûteux [cite: 36])
+    ax3.plot(spans, mems, color='#00b894', marker='^', linewidth=2)
+    ax3.set_title("Pic Mémoire (KB)")
+    ax3.set_xlabel("Longueur du span")
+    ax3.grid(True, alpha=0.3)
+
+    plt.tight_layout()
+    
+    # Encodage Base64
+    buf = io.BytesIO()
+    plt.savefig(buf, format='png', bbox_inches='tight')
+    buf.seek(0)
+    img_str = base64.b64encode(buf.read()).decode('utf-8')
+    plt.close()
+    
+    return f'<div style="text-align:center; margin: 20px 0;"><img src="data:image/png;base64,{img_str}" style="width:100%; max-width:1100px; border:1px solid #eee;"></div>'
+
 # MAIN
-lexique_test= charger_lexique("lexique_gorafi.txt")
-phrases_test = charger_phrases("phrases_gorafi.txt")
+lexique_test= charger_lexique("data/base_lexicale_simple.txt")
+phrases_test = charger_phrases("data/phrases_simple.txt")
 
 
 # DEFINITION DU CSS DE NOTRE SORTIE HTML
 global_style = r"""
 <style>
-    body { font-family: sans-serif; background: #ffffff; padding: 40px; color:#2d3436; line-height: 1.5; }
-    h1 { border-bottom: 2px solid #2d3436; padding-bottom: 10px; margin-bottom: 30px; }
-    .phrase-container { margin-bottom: 30px; border: 1px solid #ccc; border-radius: 4px; }
-    summary { padding: 15px; cursor: pointer; font-weight: bold; background: #f8f9fa; border-bottom: 1px solid #ccc; font-size: 1.2em; }
-    .content { padding: 20px; }
-    .stats-text { font-weight: normal; color: #636e72; margin-left: 20px; font-size: 0.8em; }
-    .ccg { border-collapse: collapse; margin: 40px 0; }
-    .ccg td { 
-        text-align: center; 
-        vertical-align: top; 
-        padding: 0; 
-        min-width: 150px; 
-        background-image: none !important; 
-    }
-    .word { 
-        font-weight: bold; 
-        font-size: 1.5em; 
-        padding: 20px 10px 50px 10px !important; /* 50px de vide sous les mots */
-        background: white;
-        position: relative;
-        z-index: 10;
-    }
-    .cat { 
-        font-family: monospace; 
-        font-size: 1.2em; 
-        margin-bottom: 35px; 
-        padding: 8px 15px;
-        background: white;
-        position: relative;
-        z-index: 10;
-        display: inline-block;
-    }
+    body { font-family: sans-serif; background: #ffffff; padding: 40px; color: #2d3436; }
+h1 { border-bottom: 2px solid #2d3436; padding-bottom: 10px; margin-bottom: 30px; }
+.phrase-container { margin-bottom: 30px; border: 1px solid #ccc; border-radius: 4px; }
+summary { padding: 15px; cursor: pointer; font-weight: bold; background: #f8f9fa; border-bottom: 1px solid #ccc; font-size: 1.2em; }
+.content { padding: 20px; }
+.stats-text { font-weight: normal; color: #636e72; margin-left: 20px; font-size: 0.8em; }
 
-    /* Pointillé vertical - pas encore ça*/
-    .cat-with-bar .cat::after {
-        content: "";
-        position: absolute;
-        bottom: -35px; 
-        left: 50%;
-        transform: translateX(-50%);
-        width: 3px;
-        height: 35px;
-        background-image: linear-gradient(to bottom, #2d3436 50%, transparent 50%);
-        background-size: 3px 12px;
-        display: block;
-    }
+/* ── Table CCG ── */
+table.ccg { border-collapse: collapse; margin: 32px 0; }
 
-    .empty-cell {
-        background-image: linear-gradient(to bottom, #2d3436 50%, transparent 50%) !important;
-        background-size: 2px 10px;
-        background-position: center top;
-        background-repeat: repeat-y;
-    }
-    /* ligne règle */
-    .line { 
-        border-top: 3px solid #2d3436; 
-        position: relative; 
-        z-index: 20; 
-        margin: 0 10px; 
-        height: 15px; 
-    }
+/* Mots */
+td.word {
+  font-weight: bold;
+  font-size: 1.4em;
+  text-align: center;
+  padding: 16px 18px 0 18px;
+  vertical-align: bottom;
+}
 
-    /* visu règles */
-    .rule { 
-        position: absolute; 
-        right: -25px; 
-        top: -16px; 
-        background: white; 
-        padding: 0 6px; 
-        font-size: 1.1em; 
-        font-weight: bold;
-        color: #d63031; 
-    }
+/* Rangée lexicale */
+td.lex {
+  text-align: center;
+  vertical-align: top;
+  padding: 0 12px;
+}
+
+/* Rangée de dérivation */
+td.deriv {
+  text-align: center;
+  vertical-align: top;
+  padding: 0 4px;
+}
+
+/* Pointillé vertical (connexion mot→catégorie et catégorie→barre) */
+.stem {
+  width: 1px;
+  height: 28px;
+  margin: 0 auto;
+  background: repeating-linear-gradient(
+    to bottom,
+    #636e72 0, #636e72 4px,
+    transparent 4px, transparent 8px
+  );
+}
+
+/* Barre horizontale de règle */
+.rule-bar {
+  border-top: 2.5px solid #2d3436;
+  margin: 0 auto;
+  position: relative;
+  height: 0;
+}
+
+/* Étiquette de règle (>, <B, …) */
+.rule-label {
+  position: absolute;
+  right: -30px;
+  top: -12px;
+  font-size: 0.95em;
+  font-weight: bold;
+  color: #d63031;
+  background: #fff;
+  padding: 0 4px;
+  white-space: nowrap;
+}
+
+/* Catégorie */
+.cat {
+  font-family: monospace;
+  font-size: 1.1em;
+  padding: 6px 12px 4px;
+  white-space: nowrap;
+  display: inline-block;
+}
 </style>
 """
 
@@ -590,8 +638,8 @@ for p in phrases_test:
     words = p_clean.split()
     n = len(words)
     
-    valid_sols, nb, t, chart, pic_kb = prog_cat(p_clean, lexique_test)
-    
+    valid_sols, nb, t, chart, pic_kb, evolution = prog_cat(p_clean, lexique_test)
+    line_graph_html = get_phrase_line_graph(evolution)
     
     rapport += f"""
     <details  class="phrase-container">
@@ -599,6 +647,7 @@ for p in phrases_test:
             <span class="stats-text">{t:.2f} ms | {nb} combinaisons | {pic_kb:.2f} KB</span>
         </summary>
         <div class="content">
+            {line_graph_html}  <div class="tech-card"> ... </div>
     """
 
     # Affichage des arbres de dérivation réussis
@@ -637,8 +686,8 @@ for p in phrases_test:
 rapport += "</body></html>"
 
 # Enregistrement final
-with open("dérivation_gram_cat_gorafi.html", "w", encoding="utf-8") as f:
+with open("sortie_CGC_simple.html", "w", encoding="utf-8") as f:
     f.write(rapport)
 
 # Trace succès génération de fichier 
-print("Succès, le rapport généré : 'dérivation_gram_cat_gorafi.html'")
+print("Succès, le rapport généré : 'sortie_CGC_simple.html'")

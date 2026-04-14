@@ -1,5 +1,8 @@
 import time
 import tracemalloc
+import base64
+import io
+import matplotlib.pyplot as plt 
 
 # def de classe pour gestion de l'objet 
 
@@ -237,6 +240,7 @@ def prog_cat(sentence, lexicon, use_tr=True):
 
     words = sentence.split()
     n = len(words)
+    stats_evolution = []
     
     # Initialisation de la matrice chart
         # Succes : catégories valides
@@ -297,17 +301,20 @@ def prog_cat(sentence, lexicon, use_tr=True):
                         # Stockage des échecs pour l'affichage et analyse 
                         if not found_rule:
                             chart[i][j]["stop"].append((left, right))
+        current_t = (time.perf_counter() - start_t) * 1000
+        _, pic = tracemalloc.get_traced_memory()
+        stats_evolution.append((span, current_t, nb_comb, pic / 1024))
 
     # Module de récupération du temps et de la mémoire                  
     exec_t = (time.perf_counter() - start_t) * 1000
-    courant, pic = tracemalloc.get_traced_memory()
+    _, pic = tracemalloc.get_traced_memory()
     tracemalloc.stop()
     pic_kb = pic / 1024
 
     # Fitrage des résultats des succès : dérivation complète avec S en final
     valid = [s for s in chart[0][n]["succes"] if str(s) == "S"]
 
-    return valid, nb_comb, exec_t, chart, pic_kb
+    return valid, nb_comb, exec_t, chart, pic_kb, stats_evolution
 
 
 # RECUPERATION DES DONNEES PORU CONSTRUIRE LES ARBRES
@@ -362,175 +369,263 @@ def recup_strc_arbre(cat):
             }
 
 # GESTION DES ARBRES DE DERIVATION EN HTML
-def tree_to_html(tree, title, nb_tests=0, extra_class_cat="cat-with-bar"):
+def tree_to_html(tree, title, **kwargs):
     if not tree:
         return ""
 
-    def get_words(node):
+    # ── CONFIGURATION & STYLE (Centralisé pour ton analyse critique) ──
+    cfg = {
+        "col_w": 150,        # Largeur par mot
+        "row_h": 70,         # Espace entre deux niveaux de dérivation
+        "lex_h": 60,         # Hauteur de la zone lexicale
+        "word_y": 30,        # Position Y des mots
+        "bar_width": 2.5,    # Épaisseur des barres de règle
+        "colors": {
+            "stem": "#636e72",
+            "bar": "#2d3436",
+            "rule": "#d63031",
+            "word": "#2d3436",
+            "cat": "#2d3436",
+            "final": "#0984e3" # Une petite touche de bleu pour le S final ?
+        },
+        "dash": "4,4"
+    }
+
+    # ── 1. RÉCUPÉRATION DES FEUILLES (Mots) ──
+    def get_leaves(node):
         if "word" in node: return [node]
-        words = []
-        for k in ["left", "mid", "right"]:
-            if k in node and node[k] is not None: words += get_words(node[k])
-        return words
+        leaves = []
+        for k in ("left", "mid", "right"):
+            if node.get(k): leaves += get_leaves(node[k])
+        return leaves
 
-    words_list = get_words(tree)
-    n = len(words_list)
-    grid, max_row = {}, 0
+    leaves = get_leaves(tree)
+    n = len(leaves)
+    # Map l'ID de l'objet vers son index de colonne
+    leaf_col = {id(lf): i for i, lf in enumerate(leaves)}
 
-    for i, w in enumerate(words_list):
-        cat_disp = w["cat"]
-        if w.get("word", "").lower().strip() == "et":
-            cat_disp = r"X\X/X"
-        grid[(0, i)] = {"cat": cat_disp, "width": 1, "rule": None}
+    # ── 2. CALCUL DU LAYOUT (Récursif) ──
+    cells = []
 
-    def fill_grid(node):
-        nonlocal max_row
-        if "word" in node: 
-            return 0, next(i for i, w in enumerate(words_list) if w == node), 1
-        
-        # Gestion récursive pour remplir la grille (identique à ton code actuel)
-        if "left" in node and "right" not in node and "mid" not in node:
-            r1, c1, w1 = fill_grid(node["left"])
-            row = r1 + 1
-            grid[(row, c1)] = {"cat": node["result"], "width": w1, "rule": node["rule"]}
-            max_row = max(max_row, row)
-            return row, c1, w1
-        
-        if "mid" in node: 
-            r1, c1, w1 = fill_grid(node["left"])
-            r2, c2, w2 = fill_grid(node["mid"])
-            r3, c3, w3 = fill_grid(node["right"])
-            row = max(r1, r2, r3) + 1
-            grid[(row, c1)] = {"cat": node["result"], "width": w1+w2+w3, "rule": node["rule"]}
-            max_row = max(max_row, row)
-            return row, c1, w1+w2+w3
-        
-        r1, c1, w1 = fill_grid(node["left"])
-        r2, c2, w2 = fill_grid(node["right"])
-        row = max(r1, r2) + 1
-        grid[(row, c1)] = {"cat": node["result"], "width": w1+w2, "rule": node["rule"]}
-        max_row = max(max_row, row)
-        return row, c1, w1+w2
+    def layout(node):
+        if "word" in node:
+            col = leaf_col[id(node)]
+            return 0, col, 1, (col + 0.5) * cfg["col_w"], cfg["word_y"] + cfg["lex_h"]  # row, col, span, cx, bottom_y # row, col, span, x_center
 
-    fill_grid(tree)
+        # Calcul récursif des enfants
+        children = [node[k] for k in ("left", "mid", "right") if node.get(k)]
+        child_res = [layout(c) for c in children]
+
+        # Logique de positionnement
+        my_row = max(r for r, _, _, _, _ in child_res) + 1
+        col_min = min(c for _, c, _, _, _ in child_res)
+        col_max = max(c + w - 1 for _, c, w, _, _ in child_res)
+        my_span = col_max - col_min + 1
+        my_cx = (col_min + my_span / 2) * cfg["col_w"]
+
+        my_bottom_y = cfg["word_y"] + cfg["lex_h"] + 10 + (my_row - 1) * cfg["row_h"] + 45
+
+        cells.append({
+            "row": my_row,
+            "cx": my_cx,
+            "span": my_span,
+            "cat": node.get("result", "???"),
+            "rule": node.get("rule", ""),
+            "stems": [(cx, by) for _, _, _, cx, by in child_res],
+            "is_final": (node.get("result") == "S") 
+        })
+        return my_row, col_min, my_span, my_cx, my_bottom_y
+
+    max_row, _, _, _, _ = layout(tree)
+
+    # ── 3. GÉNÉRATION SVG ──
+    total_h = cfg["word_y"] + cfg["lex_h"] + (max_row * cfg["row_h"]) + 40
+    total_w = n * cfg["col_w"] + 80
     
-    html = f"<h3>{title}</h3><table class='ccg'><tr>"
+    elements = []
     
-    # Ligne des mots
-    for w in words_list: 
-        html += f'<td class="word">{w["word"]}</td>'
-    html += '</tr>'
+    # Helper pour le texte SVG
+    def svg_text(x, y, text, size=14, weight="normal", color="#000", anchor="middle"):
+        clean_txt = str(text).replace("<", "&lt;").replace(">", "&gt;")
+        return f'<text x="{x}" y="{y}" text-anchor="{anchor}" font-size="{size}" font-weight="{weight}" fill="{color}">{clean_txt}</text>'
+
+    # Helper pour les lignes
+    def svg_line(x1, y1, x2, y2, color, width=1, dash=None):
+        style = f'stroke:{color};stroke-width:{width}'
+        if dash: style += f';stroke-dasharray:{dash}'
+        return f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" style="{style}" />'
+
+    # --- Rendu des mots et catégories lexicales ---
+    lex_cat_y = cfg["word_y"] + cfg["lex_h"]
+    for i, lf in enumerate(leaves):
+        cx = (i + 0.5) * cfg["col_w"]
+        # Mot
+        elements.append(svg_text(cx, cfg["word_y"], lf.get("word", "?"), size=18, weight="bold", color=cfg["colors"]["word"]))
+        # Pointillé lexical
+        elements.append(svg_line(cx, cfg["word_y"]+10, cx, lex_cat_y-20, cfg["colors"]["stem"], dash=cfg["dash"]))
+        # Catégorie lexicale
+        cat = lf.get("cat", "???")
+        if (lf.get("word") or "").lower() == "et": cat = r"X\X/X"
+        elements.append(svg_text(cx, lex_cat_y, cat, size=13, color=cfg["colors"]["cat"]))
+
+    # --- Rendu des dérivations ---
+    def get_y(row, part="bar"):
+        # On inverse row pour que 1 soit en bas
+        base_y = lex_cat_y + 10 + (row - 1) * cfg["row_h"]
+        return base_y + 20 if part == "bar" else base_y + 45
+
+    for c in sorted(cells, key=lambda x: x["row"]):
+        r_y_bar = get_y(c["row"], "bar")
+        r_y_cat = get_y(c["row"], "cat")
+        
+        # 1. Pointillés montants des enfants
+        for sx, sy in c["stems"]:
+            elements.append(svg_line(sx, sy, sx, r_y_bar, cfg["colors"]["stem"], dash=cfg["dash"]))
+
+        x1, x2 = min(s[0] for s in c["stems"]), max(s[0] for s in c["stems"])
+
+        # 2. Barre de règle
+        if x1 == x2: x1, x2 = x1 - 30, x2 + 30 # Type-raising
+        elements.append(svg_line(x1, r_y_bar, x2, r_y_bar, cfg["colors"]["bar"], width=cfg["bar_width"]))
+        
+        # 3. Étiquette de règle
+        elements.append(svg_text(x2 + 8, r_y_bar + 5, c["rule"], size=11, weight="bold", color=cfg["colors"]["rule"], anchor="start"))
+
+        # 4. Pointillé vers le résultat
+        elements.append(svg_line(c["cx"], r_y_bar, c["cx"], r_y_cat - 15, cfg["colors"]["stem"], dash=cfg["dash"]))
+
+        # 5. Texte Résultat
+        is_final = (c["cat"] == "S" and c["row"] == max_row)
+        color = cfg["colors"]["final"] if is_final else cfg["colors"]["cat"]
+        weight = "bold" if is_final else "normal"
+        elements.append(svg_text(c["cx"], r_y_cat, c["cat"], size=14, weight=weight, color=color))
+
+    # --- Assemblage final ---
+    svg_content = "\n  ".join(elements)
+    svg_tag = f'<svg width="{total_w}" height="{total_h}" viewBox="0 0 {total_w} {total_h}" xmlns="http://www.w3.org/2000/svg" style="background:white; display:block; margin:auto;">\n  {svg_content}\n</svg>'
     
-    # Lignes de dérivation
-    for r in range(max_row + 1):
-        row_class = "last_row" if r == max_row else ""
-        html += f'<tr class="{row_class}">'
-        c = 0
+    return f"<div class='derivation'><h3>{title}</h3>{svg_tag}</div><hr>"
 
-        while c < n:
-            if (r, c) in grid:
-                cell = grid[(r, c)]
-                label = (cell["rule"] or "").replace("<", "&lt;").replace(">", "&gt;")
-                   
-                html += f'<td colspan="{cell["width"]}" class="{label}">'
-                if cell["rule"]: 
-                    html += f'<div class="line"><span class="rule">{label}</span></div>'
-                html += f'<div class="cat">{cell["cat"]}</div></td>'
-                c += cell["width"]
+def get_phrase_line_graph(stats_evolution):
+    if not stats_evolution: return ""
+    
+    # Extraction des données
+    spans, temps, combs, mems = zip(*stats_evolution)
+    
+    # Création de la figure (3 subplots comme ton graph global)
+    fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(15, 4))
+    
+    # Graph 1 : Temps
+    ax1.plot(spans, temps, color='#d63031', marker='o', linewidth=2)
+    ax1.set_title("Évolution Temps (ms)")
+    ax1.set_xlabel("Longueur du span")
+    ax1.grid(True, alpha=0.3)
 
-            else: 
-                # Cellule vide : on prolonge le pointillé si on n'est pas tout en bas -> MARCHE PAS A REVOIR
-                if r < max_row:
-                    html += '<td class="empty-cell"></td>'
-                else :
-                    html += '<td></td>'
-                c += 1
-        html += '</tr>'
+    # Graph 2 : Unifications (Explosion )
+    ax2.plot(spans, combs, color='#0984e3', marker='s', linewidth=2)
+    ax2.set_title("Cumul Unifications")
+    ax2.set_xlabel("Longueur du span")
+    ax2.grid(True, alpha=0.3)
 
-    return html + '</table><hr>'
+    # Graph 3 : Mémoire (Parcours coûteux [cite: 36])
+    ax3.plot(spans, mems, color='#00b894', marker='^', linewidth=2)
+    ax3.set_title("Pic Mémoire (KB)")
+    ax3.set_xlabel("Longueur du span")
+    ax3.grid(True, alpha=0.3)
 
+    plt.tight_layout()
+    
+    # Encodage Base64
+    buf = io.BytesIO()
+    plt.savefig(buf, format='png', bbox_inches='tight')
+    buf.seek(0)
+    img_str = base64.b64encode(buf.read()).decode('utf-8')
+    plt.close()
+    
+    return f'<div style="text-align:center; margin: 20px 0;"><img src="data:image/png;base64,{img_str}" style="width:100%; max-width:1100px; border:1px solid #eee;"></div>'
 
 # MAIN
-lexique_test= charger_lexique("base_lexicale.txt")
-phrases_test = charger_phrases("phrases.txt")
+lexique_test= charger_lexique("data/lexique_gorafi.txt")
+phrases_test = charger_phrases("data/phrases_gorafi.txt")
 
 
 # DEFINITION DU CSS DE NOTRE SORTIE HTML
 global_style = r"""
 <style>
-    body { font-family: sans-serif; background: #ffffff; padding: 40px; color:#2d3436; line-height: 1.5; }
-    h1 { border-bottom: 2px solid #2d3436; padding-bottom: 10px; margin-bottom: 30px; }
-    .phrase-container { margin-bottom: 30px; border: 1px solid #ccc; border-radius: 4px; }
-    summary { padding: 15px; cursor: pointer; font-weight: bold; background: #f8f9fa; border-bottom: 1px solid #ccc; font-size: 1.2em; }
-    .content { padding: 20px; }
-    .stats-text { font-weight: normal; color: #636e72; margin-left: 20px; font-size: 0.8em; }
-    .ccg { border-collapse: collapse; margin: 40px 0; }
-    .ccg td { 
-        text-align: center; 
-        vertical-align: top; 
-        padding: 0; 
-        min-width: 150px; 
-        background-image: none !important; 
-    }
-    .word { 
-        font-weight: bold; 
-        font-size: 1.5em; 
-        padding: 20px 10px 50px 10px !important; /* 50px de vide sous les mots */
-        background: white;
-        position: relative;
-        z-index: 10;
-    }
-    .cat { 
-        font-family: monospace; 
-        font-size: 1.2em; 
-        margin-bottom: 35px; 
-        padding: 8px 15px;
-        background: white;
-        position: relative;
-        z-index: 10;
-        display: inline-block;
-    }
+    body { font-family: sans-serif; background: #ffffff; padding: 40px; color: #2d3436; }
+h1 { border-bottom: 2px solid #2d3436; padding-bottom: 10px; margin-bottom: 30px; }
+.phrase-container { margin-bottom: 30px; border: 1px solid #ccc; border-radius: 4px; }
+summary { padding: 15px; cursor: pointer; font-weight: bold; background: #f8f9fa; border-bottom: 1px solid #ccc; font-size: 1.2em; }
+.content { padding: 20px; }
+.stats-text { font-weight: normal; color: #636e72; margin-left: 20px; font-size: 0.8em; }
 
-    /* Pointillé vertical - pas encore ça*/
-    .cat-with-bar .cat::after {
-        content: "";
-        position: absolute;
-        bottom: -35px; 
-        left: 50%;
-        transform: translateX(-50%);
-        width: 3px;
-        height: 35px;
-        background-image: linear-gradient(to bottom, #2d3436 50%, transparent 50%);
-        background-size: 3px 12px;
-        display: block;
-    }
+/* ── Table CCG ── */
+table.ccg { border-collapse: collapse; margin: 32px 0; }
 
-    .empty-cell {
-        background-image: linear-gradient(to bottom, #2d3436 50%, transparent 50%) !important;
-        background-size: 2px 10px;
-        background-position: center top;
-        background-repeat: repeat-y;
-    }
-    /* ligne règle */
-    .line { 
-        border-top: 3px solid #2d3436; 
-        position: relative; 
-        z-index: 20; 
-        margin: 0 10px; 
-        height: 15px; 
-    }
+/* Mots */
+td.word {
+  font-weight: bold;
+  font-size: 1.4em;
+  text-align: center;
+  padding: 16px 18px 0 18px;
+  vertical-align: bottom;
+}
 
-    /* visu règles */
-    .rule { 
-        position: absolute; 
-        right: -25px; 
-        top: -16px; 
-        background: white; 
-        padding: 0 6px; 
-        font-size: 1.1em; 
-        font-weight: bold;
-        color: #d63031; 
-    }
+/* Rangée lexicale */
+td.lex {
+  text-align: center;
+  vertical-align: top;
+  padding: 0 12px;
+}
+
+/* Rangée de dérivation */
+td.deriv {
+  text-align: center;
+  vertical-align: top;
+  padding: 0 4px;
+}
+
+/* Pointillé vertical (connexion mot→catégorie et catégorie→barre) */
+.stem {
+  width: 1px;
+  height: 28px;
+  margin: 0 auto;
+  background: repeating-linear-gradient(
+    to bottom,
+    #636e72 0, #636e72 4px,
+    transparent 4px, transparent 8px
+  );
+}
+
+/* Barre horizontale de règle */
+.rule-bar {
+  border-top: 2.5px solid #2d3436;
+  margin: 0 auto;
+  position: relative;
+  height: 0;
+}
+
+/* Étiquette de règle (>, <B, …) */
+.rule-label {
+  position: absolute;
+  right: -30px;
+  top: -12px;
+  font-size: 0.95em;
+  font-weight: bold;
+  color: #d63031;
+  background: #fff;
+  padding: 0 4px;
+  white-space: nowrap;
+}
+
+/* Catégorie */
+.cat {
+  font-family: monospace;
+  font-size: 1.1em;
+  padding: 6px 12px 4px;
+  white-space: nowrap;
+  display: inline-block;
+}
 </style>
 """
 
@@ -543,8 +638,8 @@ for p in phrases_test:
     words = p_clean.split()
     n = len(words)
     
-    valid_sols, nb, t, chart, pic_kb = prog_cat(p_clean, lexique_test)
-    
+    valid_sols, nb, t, chart, pic_kb, evolution = prog_cat(p_clean, lexique_test)
+    line_graph_html = get_phrase_line_graph(evolution)
     
     rapport += f"""
     <details  class="phrase-container">
@@ -552,6 +647,7 @@ for p in phrases_test:
             <span class="stats-text">{t:.2f} ms | {nb} combinaisons | {pic_kb:.2f} KB</span>
         </summary>
         <div class="content">
+            {line_graph_html}  <div class="tech-card"> ... </div>
     """
 
     # Affichage des arbres de dérivation réussis
@@ -590,8 +686,8 @@ for p in phrases_test:
 rapport += "</body></html>"
 
 # Enregistrement final
-with open("dérivation_gram_cat3.html", "w", encoding="utf-8") as f:
+with open("sortie_CGC_gorafi.html", "w", encoding="utf-8") as f:
     f.write(rapport)
 
 # Trace succès génération de fichier 
-print("Succès, le rapport généré : 'dérivation_gram_cat.html'")
+print("Succès, le rapport généré : 'sortie_CGC_gorafi.html'")
