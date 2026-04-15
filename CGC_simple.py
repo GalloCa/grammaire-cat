@@ -529,7 +529,7 @@ def get_phrase_line_graph(stats_evolution):
 
     # Graph 2 : Unifications 
     ax2.plot(spans, combs, color='#0984e3', marker='s', linewidth=2)
-    ax2.set_title("Cumul Unifications")
+    ax2.set_title("Nombre de résolution")
     ax2.set_xlabel("Longueur du span")
     ax2.grid(True, alpha=0.3)
 
