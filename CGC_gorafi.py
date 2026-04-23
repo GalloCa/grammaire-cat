@@ -637,7 +637,7 @@ td.deriv {
 
 # CREATION DU FICHIER HTML DE SORTIE
 rapport = f"<!DOCTYPE html><html><head><meta charset='utf-8'>{global_style}</head><body>"
-rapport += "<h1>Visualisation des arbres de dérivation en Grammaire Catégorielle</h1>"
+rapport += "<h1>Visualisation des arbres de dérivation en Grammaire Catégorielle - Sortie Gorafi</h1>"
 
 for p in phrases_test:
     p_clean = p.replace(".", "").strip()
