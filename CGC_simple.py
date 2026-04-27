@@ -730,7 +730,7 @@ def main():
     """
     Point d'entrée du script
 
-    Chargele lexique et les phrases, lance l'analuyse GC pour chaque phrase,
+    Charge le lexique et les phrases, lance l'analyse pour chaque phrase,
     puis génère le rapport HTML
     """
 
