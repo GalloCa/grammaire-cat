@@ -53,7 +53,7 @@ class Categories :
     
 # Fonction de gestion de la coordination X\X/X
     def matches(self, other):
-        """
+        r"""
         Cette fonction vérifie si deux catégories sont compatibles pour être unifiées
         La variable X sert de joker pour la coordination : X\X/X
         Toute catégorie concrète est compatible avec X
@@ -103,10 +103,11 @@ def charger_phrases(filename):
                 l = ligne.strip()
                 if l and not ligne.startswith("#"):
                     phrases.append(l)
+        print(f"{len(phrases)} phrases chargées depuis {filename}")
     except FileNotFoundError :
         print(f"Erreur : le fichier {filename} des phrases est introuvable")
     except OSError as e :
-        print("Erreur de lecture du ficher {filename}")
+        print(f"Erreur de lecture du ficher {filename}, erreur : {e}")
     return phrases
 
 def charger_lexique(filename):
@@ -122,29 +123,29 @@ def charger_lexique(filename):
     lexique = {}
     try:
         with open(filename, mode='r',encoding='utf-8') as f:
-            for num_ligne, ligne in enumerate(f, statr=1):
+            for num_ligne, ligne in enumerate(f, start=1):
                 l = ligne.strip()
-                if l and not l.startswith("#"):
+                if not l and l.startswith("#"):
                     continue
                 if ":"not in l:
-                    print(f"Ligne %d ignorée : format invalide")
+                    print(f"Ligne {num_ligne} ignorée : format invalide")
                     continue
                 mot, cats = ligne.split(":",1)
                 mot = mot.strip()
                 if not mot :
-                    print(f"Ligne %d ignorée : mot vide ignoré :", num_ligne)
+                    print(f"Ligne {num_ligne} ignorée : mot vide ignoré")
                     continue
                 listes_cats = [c.strip() for c in cats.split(",") if c.strip()]
-                if not listes_cat : 
-                    print(f"Ligne %d aucune catégorie pour :", num_ligne, mot)
+                if not listes_cats : 
+                    print(f"Ligne {num_ligne} aucune catégorie pour : {mot}")
                     continue
                 lexique[mot] = listes_cats
-        print(f"%d entrée(s) lexicale(s) chargée(s) depuis '%s'.", num_ligne, mot)
+        print(f"{num_ligne} entrée(s) lexicale(s) chargée(s) depuis '{filename}'.")
         
     except FileNotFoundError :
         print(f"Erreur : le fichier {filename} des phrases est introuvable")
     except OSError as e :
-        print("Erreur de lecture du ficher {filename}")
+        print(f"Erreur de lecture du ficher {filename}")
    
     return lexique
 
@@ -242,7 +243,7 @@ def appli_norm(l, r):
     Sortie :
         La catégorie résultante ou None si la règle ne s'applique pas
     """
-    if l.slash == "/" and l.right.matches(r):
+    if not l.is_basic and l.slash == "/" and l.right.matches(r) :
         res = substitut_x(l.left, r) if "X" in str(l) else l.left
         return Categories(res.left, res.slash, res.right, origin=(l, r, ">"))
     return None
@@ -259,13 +260,13 @@ def appli_inverse(l, r):
     Sortie :
         La catégorie résultante ou None si la règle ne s'applique pas
     """
-    if r.slash == "\\" and r.right.matches(l):
+    if not r.is_basic and r.slash == "\\" and r.right.matches(l) :
         res = substitut_x(r.left, l) if "X" in str(r) else r.left
         return Categories(res.left, res.slash, res.right, origin=(l, r, "<"))
     return None
 
 def compo_harmo(l, r):
-    """
+    r"""
     Règle de composition harmonique (>B) : X/Y  Y\Z -> X\Z
 
      Entrées : 
@@ -274,8 +275,8 @@ def compo_harmo(l, r):
     Sortie :
         La catégorie résultante ou None si la règle ne s'applique pas
     """
-    if l.slash == "/" and r.slash == "/" :
-        if l.right.matches(r.left):
+    if not l.is_basic and not r.is_basic :
+        if l.slash == "/" and r.slash == "/" and l.right.matches(r.left) :
             return Categories(l.left, "/", r.right, origin=(l, r, "> B"))
     return None
 
@@ -289,13 +290,13 @@ def compo_inverse(l, r):
     Sortie :
         La catégorie résultante ou None si la règle ne s'applique pas
     """
-    if r.slash == "\\" and l.slash == "\\":
-        if r.right.matches(l.left):
-            return Categories(r.left, "\\", l.right, origin=(l, r, "< B"))
+    if not l.is_basic and not r.is_basic :
+            if r.slash == "\\" and l.slash == "\\" and r.right.matches(l.left) :
+                return Categories(r.left, "\\", l.right, origin=(l, r, "< B"))
     return None
 
 def type_raising(c):
-    """
+    r"""
     Règle de type-raising (>T) : NP -> S/ S \NP
 
     Transforme tout constituant dont la catégorie est NP
@@ -361,21 +362,21 @@ def prog_cat(sentence, lexicon, use_tr=True):
                         tr = type_raising(c)
                         if tr : 
                             chart[i][i+1]["succes"].append(tr)
-                except ValueError ase :
-                    print(f"Catégorie invalide '%s' pour le mot '%s' : %s",
-                          cat_str, word, e)
+                except ValueError as e :
+                    print(f"Catégorie invalide {cat_str} pour le mot : {word}, erreur : {e}")
         else:
             # Gestion des mots inconnus
-            print(f"Mot inconnu du lexique : '%s'.", word)
+            print(f"Mot inconnu du lexique : '{word}'")
             chart[i][i+1]["succes"].append(Categories("???", word=word))
             
     # DEBUT BOUCLE DE RECHERCHE 
     for span in range(2, n + 1) :        # longueur du segment courant
         for i in range(n - span + 1) :   
             j = i + span
+            
             for k in range(i + 1, j) :
 
-                # GESTION DU CAS DE LA COORDINATION
+               # GESTION DU CAS DE LA COORDINATION
                 if j - i >= 3 :
                     for k2 in range(k + 1, j) :
                         for c1 in chart[i][k]["succes"] :
@@ -390,8 +391,9 @@ def prog_cat(sentence, lexicon, use_tr=True):
                 # cAS GENERAL / REGLES BINAIRES 
                 for left in chart[i][k]["succes"] :
                     for right in chart[k][j]["succes"] :
+
                         if (left.word or '').lower() == 'et' :
-                            contunue 
+                            continue 
                         if (right.word or '').lower() == 'et' : 
                             continue
 
@@ -402,7 +404,8 @@ def prog_cat(sentence, lexicon, use_tr=True):
                         for res in [appli_norm(left, right), 
                                     appli_inverse(left, right), 
                                     compo_harmo(left, right), 
-                                    compo_inverse(left, right)]:
+                                    compo_inverse(left, right)] :
+                            
                             if res is not None : 
                                 chart[i][j]["succes"].append(res)
                                 found_rule = True
@@ -429,8 +432,7 @@ def prog_cat(sentence, lexicon, use_tr=True):
     # Fitrage des résultats des succès : dérivation complète avec S en final
     valid = [s for s in chart[0][n]["succes"] if str(s) == "S"]
 
-    print(f"Analyse de '%s' : %d solution(s), %d combinaisons, %.2f ms, %.2f KB", 
-          sentence, len(valid), nb_comb, exec_t, pic_kb)
+    print(f"Analyse de '{sentence}' : {len(valid)} solution(s), {nb_comb} combinaisons, {exec_t:.2f} ms, {pic_kb:.2f} KB")
     
     return valid, nb_comb, exec_t, chart, pic_kb, stats_evolution
 
@@ -438,8 +440,14 @@ def prog_cat(sentence, lexicon, use_tr=True):
 # RECUPERATION DES DONNEES PORU CONSTRUIRE LES ARBRES
 def recup_frag_abandon(chart, n):
     """ 
-    test fct pour récup en mémoire les fragments abandonnés
+    Identifie les fragments maximaux construits en cas d'échec d'analyse
 
+    Entrée : 
+        chart (list[list[dict]]) : la table remplie par prog_cat()
+        n (int) : nombre de mots dans la phrase
+    
+    Sortie :
+        list[Categories] : les catégories couvrant la phrase avec les segments
     """
     dp = {0: (0, [])} #  (nombre_de_morceaux, liste_des_categories)
     
@@ -456,38 +464,60 @@ def recup_frag_abandon(chart, n):
     return dp[n][1]
 
 
-def recup_strc_arbre(cat):
+def recup_strc_arbre(cat, _depth=0) :
     """
-    récupère mémoire pour génération des arbres 
-    attention récursif = faire gestion des erreurs 
+    Reconstruit récursivement la structure d'un arbre de dérivation
+    Adapté pour un rendu SVG
 
+    Entrées :  
+        cat (Categories) : les catégories racine de l'arbre à reconstruire
+        _depth (int) : profindeur courante  (usage interne, protection contre les cycles)
+    Sorties : 
+        dict : représentation arborescente du noeud et de ses descendants
     """
+    # Gestion de la récursion
+    if _depth > 200 : 
+        print(f"Attention proifondeur maximale de récursion atteinte dans recup_strc_arbre")
+        return {"word" : "...", "cat" : "?"}
+    
     if not cat.origin: 
         return {"word": cat.word, "cat": str(cat)}
+    
     if len(cat.origin) == 4:
         c1, c2, c3, rule = cat.origin
         return {"result": str(cat), 
                 "rule": rule, 
-                "left": recup_strc_arbre(c1), 
-                "mid": recup_strc_arbre(c2), 
-                "right": recup_strc_arbre(c3)
+                "left": recup_strc_arbre(c1,_depth + 1), 
+                "mid": recup_strc_arbre(c2, _depth + 1), 
+                "right": recup_strc_arbre(c3, _depth + 1),
                 }
     
     l, r, rule = cat.origin
     if r is None: 
         return {"result": str(cat), 
                 "rule": rule, 
-                "left": recup_strc_arbre(l)
+                "left": recup_strc_arbre(l, _depth + 1)
                 }
 
     return {"result": str(cat), 
             "rule": rule, 
-            "left": recup_strc_arbre(l), 
-            "right": recup_strc_arbre(r)
+            "left": recup_strc_arbre(l, _depth +1), 
+            "right": recup_strc_arbre(r, _depth+1),
             }
 
 # GESTION DES ARBRES DE DERIVATION EN HTML
-def tree_to_html(tree, title, **kwargs):
+def tree_to_html(tree, title) :
+    """ 
+    Génère le code html contenant un arbre de dérivation en SVG
+
+    Entrées :
+        tree (dict) : structure arborescente produite par recup_strc_arbre()
+                      Si None ou vide, retourne une chaine vide
+        title (str) : le titre afficher au dessus de l'arbre
+
+    Sorties : 
+        str : fragment html à inserer dans le rapport
+    """
     if not tree:
         return ""
 
@@ -508,31 +538,53 @@ def tree_to_html(tree, title, **kwargs):
         },
         "dash": "4,4"
     }
+    # Helpers SVG
+    def svg_text(x, y, text, size=14, weight="normal", color="#000", anchor="middle") :
+        """ Génère une balise <text> SVG"""
+        clean_txt = str(text).replace("<", "&lt;").replace(">", "&gt;")
+        return f'<text x="{x}" y="{y}" text-anchor="{anchor}" font-size="{size}" font-weight="{weight}" fill="{color}">{clean_txt}</text>'
 
+    def svg_line(x1, y1, x2, y2, color, width=1, dash=None):
+        """Génère une balise <line> SVG"""
+        style = f'stroke:{color};stroke-width:{width}'
+        if dash: style += f';stroke-dasharray:{dash}'
+        return f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" style="{style}" />'
     
     def get_leaves(node):
         """
+        Retourne la liste des feuilles d'un noeud"
         """
-        if "word" in node: return [node]
+        if "word" in node : 
+            return [node]
         leaves = []
         for k in ("left", "mid", "right"):
-            if node.get(k): leaves += get_leaves(node[k])
+            if node.get(k) : 
+                leaves += get_leaves(node[k])
         return leaves
 
     leaves = get_leaves(tree)
-    n = len(leaves)
+    n_leaves = len(leaves)
     # Map l'ID de l'objet vers son index de colonne
     leaf_col = {id(lf): i for i, lf in enumerate(leaves)}
 
-    # ── 2. CALCUL DU LAYOUT (Récursif) ──
+    #  CALCUL DU LAYOUT (Récursif)
     cells = []
 
     def layout(node):
         """
+        Calcul la position d'un noeud et de ses enfants
+
+        Retourne un tuple (row, col, span, cx, bottom_y)
+            row : niveau vertical
+            col : colonne de départ
+            span : nombre de colonnes couvertes
+            cx : centre horizontal
+            bottom_y : coordonnée y du bas du noeud pour relier au parent
+
         """
         if "word" in node:
             col = leaf_col[id(node)]
-            return 0, col, 1, (col + 0.5) * cfg["col_w"], cfg["word_y"] + cfg["lex_h"]  # row, col, span, cx, bottom_y # row, col, span, x_center
+            return 0, col, 1, (col + 0.5) * cfg["col_w"], cfg["word_y"] + cfg["lex_h"]  
 
         # Calcul récursif des enfants
         children = [node[k] for k in ("left", "mid", "right") if node.get(k)]
@@ -562,26 +614,19 @@ def tree_to_html(tree, title, **kwargs):
 
     # GÉNÉRATION SVG 
     total_h = cfg["word_y"] + cfg["lex_h"] + (max_row * cfg["row_h"]) + 40
-    total_w = n * cfg["col_w"] + 80
-    
+    total_w = n_leaves * cfg["col_w"] + 80
     elements = []
     
-    # 
-    def svg_text(x, y, text, size=14, weight="normal", color="#000", anchor="middle"):
-        clean_txt = str(text).replace("<", "&lt;").replace(">", "&gt;")
-        return f'<text x="{x}" y="{y}" text-anchor="{anchor}" font-size="{size}" font-weight="{weight}" fill="{color}">{clean_txt}</text>'
-
-    # 
-    def svg_line(x1, y1, x2, y2, color, width=1, dash=None):
-        style = f'stroke:{color};stroke-width:{width}'
-        if dash: style += f';stroke-dasharray:{dash}'
-        return f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" style="{style}" />'
-
-    # Rendu des mots et catégories lexicales 
     lex_cat_y = cfg["word_y"] + cfg["lex_h"]
+    # Rendu des mots et catégories lexicales 
     for i, lf in enumerate(leaves):
         cx = (i + 0.5) * cfg["col_w"]
+        cat = lf.get("cat", "???")
+
+        if (lf.get("word") or "").lower() == "et" :
+            cat = r"X\X/X"
         # Mot
+
         elements.append(svg_text(cx, cfg["word_y"], lf.get("word", "?"), size=18, weight="bold", color=cfg["colors"]["word"]))
         # Pointillé lexical
         elements.append(svg_line(cx, cfg["word_y"]+10, cx, lex_cat_y-20, cfg["colors"]["stem"], dash=cfg["dash"]))
@@ -592,6 +637,7 @@ def tree_to_html(tree, title, **kwargs):
 
     # Rendu des dérivations 
     def get_y(row, part="bar"):
+        """Calcul la coordonnée y d'un élément selon son niveau et sa partie"""
         base_y = lex_cat_y + 10 + (row - 1) * cfg["row_h"]
         return base_y + 20 if part == "bar" else base_y + 45
 
@@ -603,10 +649,12 @@ def tree_to_html(tree, title, **kwargs):
         for sx, sy in c["stems"]:
             elements.append(svg_line(sx, sy, sx, r_y_bar, cfg["colors"]["stem"], dash=cfg["dash"]))
 
-        x1, x2 = min(s[0] for s in c["stems"]), max(s[0] for s in c["stems"])
+        x1 = min(s[0] for s in c["stems"])
+        x2 = max(s[0] for s in c["stems"])
 
         # Barre de règle
-        if x1 == x2: x1, x2 = x1 - 30, x2 + 30 # Type-raising
+        if x1 == x2 : 
+            x1, x2 = x1 - 30, x2 + 30 # Type-raising
         elements.append(svg_line(x1, r_y_bar, x2, r_y_bar, cfg["colors"]["bar"], width=cfg["bar_width"]))
         
         # Étiquette de règle
@@ -629,9 +677,18 @@ def tree_to_html(tree, title, **kwargs):
 
 def get_phrase_line_graph(stats_evolution):
     """
-    
+    Génère un graphique d'évolution des métrique de performance par span
+    Produit trois courbes : Temps d'exécution, Nombre de combinaisons testées cumulées,
+                            Pic mémoire
+
+    Entrées :
+        stats_evolution (list[tuple]) : la liste retournée par prog_cat()
+    Sorties :
+        str : balise <img> html ou chaine vide si stats_evolution est vide
+
     """
-    if not stats_evolution: return ""
+    if not stats_evolution : 
+        return ""
     
     # Extraction des données
     spans, temps, combs, mems = zip(*stats_evolution)
@@ -645,7 +702,7 @@ def get_phrase_line_graph(stats_evolution):
     ax1.set_xlabel("Longueur du span")
     ax1.grid(True, alpha=0.3)
 
-    # Graph 2 : Unifications 
+    # Graph 2 : Combinaisons
     ax2.plot(spans, combs, color='#0984e3', marker='s', linewidth=2)
     ax2.set_title("Nombre de résolution")
     ax2.set_xlabel("Longueur du span")
@@ -659,159 +716,120 @@ def get_phrase_line_graph(stats_evolution):
 
     plt.tight_layout()
     
-    # Encodage Base64
+    # Encodage Base64 pour intégration directe dans le HTML 
     buf = io.BytesIO()
     plt.savefig(buf, format='png', bbox_inches='tight')
     buf.seek(0)
     img_str = base64.b64encode(buf.read()).decode('utf-8')
     plt.close()
     
-    return f'<div style="text-align:center; margin: 20px 0;"><img src="data:image/png;base64,{img_str}" style="width:100%; max-width:1100px; border:1px solid #eee;"></div>'
+    return (f'<div style="text-align:center; margin: 20px 0;"><img src="data:image/png;base64,{img_str}" style="width:100%; max-width:1100px; border:1px solid #eee;"></div>')
 
 # MAIN
-lexique_test= charger_lexique("data/base_lexicale_simple.txt")
-phrases_test = charger_phrases("data/phrases_simple.txt")
+def main():
+    """
+    Point d'entrée du script
+
+    Chargele lexique et les phrases, lance l'analuyse GC pour chaque phrase,
+    puis génère le rapport HTML
+    """
+
+    lexique_test= charger_lexique("data/base_lexicale_simple.txt")
+    phrases_test = charger_phrases("data/phrases_simple.txt")
+
+    if not lexique_test : 
+        print(f"Le lexique est vide. Arrêt du script")
+        return
+    if not phrases_test : 
+        print(f"Aucune phrase à analyser. Arrêt du script")
+        return
 
 
 # DEFINITION DU CSS DE NOTRE SORTIE HTML
-global_style = r"""
-<style>
+    css = """
+    <style>
     body { font-family: sans-serif; background: #ffffff; padding: 40px; color: #2d3436; }
-h1 { border-bottom: 2px solid #2d3436; padding-bottom: 10px; margin-bottom: 30px; }
-.phrase-container { margin-bottom: 30px; border: 1px solid #ccc; border-radius: 4px; }
-summary { padding: 15px; cursor: pointer; font-weight: bold; background: #f8f9fa; border-bottom: 1px solid #ccc; font-size: 1.2em; }
-.content { padding: 20px; }
-.stats-text { font-weight: normal; color: #636e72; margin-left: 20px; font-size: 0.8em; }
-
-/* ── Table CCG ── */
-table.ccg { border-collapse: collapse; margin: 32px 0; }
-
-/* Mots */
-td.word {
-  font-weight: bold;
-  font-size: 1.4em;
-  text-align: center;
-  padding: 16px 18px 0 18px;
-  vertical-align: bottom;
-}
-
-/* Rangée lexicale */
-td.lex {
-  text-align: center;
-  vertical-align: top;
-  padding: 0 12px;
-}
-
-/* Rangée de dérivation */
-td.deriv {
-  text-align: center;
-  vertical-align: top;
-  padding: 0 4px;
-}
-
-/* Pointillé vertical (connexion mot→catégorie et catégorie→barre) */
-.stem {
-  width: 1px;
-  height: 28px;
-  margin: 0 auto;
-  background: repeating-linear-gradient(
-    to bottom,
-    #636e72 0, #636e72 4px,
-    transparent 4px, transparent 8px
-  );
-}
-
-/* Barre horizontale de règle */
-.rule-bar {
-  border-top: 2.5px solid #2d3436;
-  margin: 0 auto;
-  position: relative;
-  height: 0;
-}
-
-/* Étiquette de règle (>, <B, …) */
-.rule-label {
-  position: absolute;
-  right: -30px;
-  top: -12px;
-  font-size: 0.95em;
-  font-weight: bold;
-  color: #d63031;
-  background: #fff;
-  padding: 0 4px;
-  white-space: nowrap;
-}
-
-/* Catégorie */
-.cat {
-  font-family: monospace;
-  font-size: 1.1em;
-  padding: 6px 12px 4px;
-  white-space: nowrap;
-  display: inline-block;
-}
-</style>
-"""
-
-# CREATION DU FICHIER HTML DE SORTIE
-rapport = f"<!DOCTYPE html><html><head><meta charset='utf-8'>{global_style}</head><body>"
-rapport += "<h1>Visualisation des arbres de dérivation en Grammaire Catégorielle - Sortie phrases simples</h1>"
-
-for p in phrases_test:
-    p_clean = p.replace(".", "").strip()
-    words = p_clean.split()
-    n = len(words)
-    
-    valid_sols, nb, t, chart, pic_kb, evolution = prog_cat(p_clean, lexique_test)
-    line_graph_html = get_phrase_line_graph(evolution)
-    
-    rapport += f"""
-    <details  class="phrase-container">
-        <summary>« {p} »
-            <span class="stats-text">{t:.2f} ms | {nb} combinaisons | {pic_kb:.2f} KB</span>
-        </summary>
-        <div class="content">
-            {line_graph_html}  <div class="tech-card"> ... </div>
+    h1   { border-bottom: 2px solid #2d3436; padding-bottom: 10px; margin-bottom: 30px; }
+    .phrase-container { margin-bottom: 30px; border: 1px solid #ccc; border-radius: 4px; }
+    summary   { padding: 15px; cursor: pointer; font-weight: bold; background: #f8f9fa;
+                border-bottom: 1px solid #ccc; font-size: 1.2em; }
+    .content  { padding: 20px; }
+    .stats-text { font-weight: normal; color: #636e72; margin-left: 20px; font-size: 0.8em; }
+    .cat { font-family: monospace; font-size: 1.1em; padding: 6px 12px 4px; white-space: nowrap; }
+    </style>
     """
 
-    # Affichage des arbres de dérivation réussis
-    rapport += "<h3>DERIVATIONS : Phrases complètes (S)</h3>"
-    if valid_sols:
-        for i, sol in enumerate(valid_sols):
-            rapport += tree_to_html(recup_strc_arbre(sol), f"Dérivation n°{i+1}")
-    else:
-        rapport += "<p>Aucune dérivation en S trouvée.</p>"
+    # CREATION DU FICHIER HTML DE SORTIE
+    rapport = f"<!DOCTYPE html><html><head><meta charset='utf-8'>{css}</head><body>"
+    rapport += "<h1>Visualisation des arbres de dérivation en Grammaire Catégorielle - Sortie phrases simples</h1>"
 
-    # Affichage des échecs : ne trouve pas S à la fin de la dérivation complète
-    echecs_finaux = [c for c in chart[0][n]["succes"] if str(c) != "S"]
-    rapport += "<h3>ECHECS : Structures complètes finales mais non-S</h3>"
-    if echecs_finaux:
-        for i, sol in enumerate(echecs_finaux):
-            rapport += tree_to_html(recup_strc_arbre(sol), f"Structure finale n°{i+1} (Catégorie: {str(sol)})")
-    else:
-        rapport += "<p>Structure de dérivation complète mais n'aboutissant pas à S.</p>"
+    for p in phrases_test:
+        p_clean = p.replace(".", "").strip()
+        words = p_clean.split()
+        n = len(words)
+        
+        try : 
+            valid_sols, nb, t, chart, pic_kb, evolution = prog_cat(p_clean, lexique_test)
+        except ValueError as e :
+            print(f"Erreur {e} d'analyse pour {p}")
+            continue
 
-    # Affichage des segments intermédiaire qui ont conduit à un arrêt
-    rapport += "<h3>SEGMENTS : Constituants intermédiaires abandonnés</h3>"
-    found_abandon = False
-    for span in range(n - 1, 1, -1):
-        for i_idx in range(n - span + 1):
-            j_idx = i_idx + span
-            for cat in chart[i_idx][j_idx]["succes"]:
-                mots_segment = " ".join(words[i_idx:j_idx])
-                rapport += tree_to_html(recup_strc_arbre(cat), f"Segment : « {mots_segment} »")
-                found_abandon = True
-                
-    if not found_abandon:
-        rapport += "<p>Aucun segment intermédiaire construit.</p>"
+        line_graph_html = get_phrase_line_graph(evolution)
+        
+        rapport += f"""
+        <details  class="phrase-container">
+            <summary>« {p} »
+                <span class="stats-text">{t:.2f} ms | {nb} combinaisons | {pic_kb:.2f} KB</span>
+            </summary>
+            <div class="content">
+                {line_graph_html}  <div class="tech-card"> ... </div>
+        """
 
-    rapport += "</div></details>"
+        # Affichage des arbres de dérivation complet S
+        rapport += "<h3>DERIVATIONS : Phrases complètes (S)</h3>"
+        if valid_sols:
+            for i, sol in enumerate(valid_sols):
+                rapport += tree_to_html(recup_strc_arbre(sol), f"Dérivation n°{i+1}")
+        else:
+            rapport += "<p>Aucune dérivation en S trouvée.</p>"
+
+        # Affichage des échecs : ne trouve pas S à la fin de la dérivation complète
+        echecs_finaux = [c for c in chart[0][n]["succes"] if str(c) != "S"]
+        rapport += "<h3>ECHECS : Structures complètes finales mais non-S</h3>"
+        if echecs_finaux:
+            for i, sol in enumerate(echecs_finaux):
+                rapport += tree_to_html(recup_strc_arbre(sol), f"Structure finale n°{i+1} (Catégorie: {str(sol)})")
+        else:
+            rapport += "<p>Aucune structure complète alternative.</p>"
+
+        # Affichage des segments intermédiaire qui ont conduit à un arrêt
+        rapport += "<h3>SEGMENTS : Constituants intermédiaires abandonnés</h3>"
+        found_abandon = False
+        for span in range(n - 1, 1, -1):
+            for i_idx in range(n - span + 1):
+                j_idx = i_idx + span
+                for cat in chart[i_idx][j_idx]["succes"]:
+                    mots_segment = " ".join(words[i_idx:j_idx])
+                    rapport += tree_to_html(recup_strc_arbre(cat), f"Segment : « {mots_segment} »")
+                    found_abandon = True
                     
-rapport += "</body></html>"
+        if not found_abandon:
+            rapport += "<p>Aucun segment intermédiaire construit.</p>"
 
-# Enregistrement final
-with open("sortie_CGC_simple.html", "w", encoding="utf-8") as f:
-    f.write(rapport)
+        rapport += "</div></details>"
+                        
+    rapport += "</body></html>"
 
-# Trace succès génération de fichier 
-print("Succès, le rapport généré : 'sortie_CGC_simple.html'")
+    # Enregistrement final
+    output_file = "sortie_CGC_simple.html"
+    try : 
+        with open(output_file, "w", encoding="utf-8") as f :
+            f.write(rapport)
+        print(f"Rapport {output_file} généré avec succès")
+    except OSError as e : 
+        print(f"Impossible d'écrire le rapport {output_file}, erreur : {e}")
+
+# Lancement 
+
+if __name__ == "__main__":
+    main()

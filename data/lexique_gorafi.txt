@@ -7,7 +7,6 @@ de : NP\NP/NP
 littérature : NP
 la : NP/NP
 FIFA : NP
-
 Un : NP/NP
 immense : NP/NP
 honneur : NP
@@ -20,18 +19,6 @@ tant : S/S
 jour : NP
 souffrance : NP
 
-
-Cette : NP/NP
-cérémonie : NP
-intervient : S\NP
-à :  NP\NP/NP
-peine : NP
-semaine :NP
-remise : NP
-du : NP\NP/NP
-paix : NP
-Donald : NP
-Trump : NP\NP
 
 
 
