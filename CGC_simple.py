@@ -1,8 +1,24 @@
+"""
+Conception d’un moteur d’inférence pour une Grammaire Catégorielle du français
+Ce module implémente :
+    - Une représentation des catégories syntaxiques selon la Grammaire Catégorielle (classe Categories)
+    - Le chargement d'un lexique et de phrases depuis des fichiers texte
+    - Six règles combinatoires CCG : application avant/arrière,
+      composition harmonique avant/arrière, type-raising, coordination
+    - L'algorithme d'analyse 
+    - La génération d'arbres de dérivation en SVG intégrés dans un rapport HTML
+    - Un monitoring du temps d'exécution et de la mémoire
+ 
+Utilisation :
+    Placer les fichiers de données dans data/ puis exécuter le script.
+    Le rapport est généré dans sortie_CGC_simple.html.
+ 
+Auteur  : GALLO Caroline
+Cours   : Formalisme & Représentation des Connaissances
+Année   : 2025-2026
+"""
 
-
-
-
-
+# MODULES 
 import time
 import tracemalloc
 import base64
