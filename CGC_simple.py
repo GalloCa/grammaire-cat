@@ -4,15 +4,28 @@ import base64
 import io
 import matplotlib.pyplot as plt 
 
-# def de classe pour gestion de l'objet 
+# CLASSE CATEGORIE
 
 class Categories :  
     """ 
-    On veut ce qui est à gauche du slash = résultat attendu
-    left = gauche du slash
-    droite = argument attendu
-    is_basic = catégorie basique S ou NP, X
+    Représente une catégorie syntaxique en Grammaire Catégorielle.
+
+    Une catégorie est : 
+            - Basique : S ou NO
+            - Complexe : deux catégorie reliées pas un slash
+                         de la forme résultat / argument 
+                         ou résultat \\ argument
+    
+    Attributs : 
+
+    left (str) : la catégorie résultante
+    slash (str) : le connecteur ; None pour une catégorie basique
+    right (str) : la catégorie argument
+    word (str) : le mot du lexique auquel cette catégorie est attachée (sert pour la trace)
+    origine (tuple) : décrit la règle qui a produit cette catégorie
+    is_basic (bool) : True si la catégorie est basique
     """
+    
     def __init__(self, left, slash=None, right=None, word=None, origin=None):
         self.left = left    
         self.slash = slash  
@@ -23,6 +36,10 @@ class Categories :
 
 #  Gestion parenthèse de lecture pour que la machine isole l'item recherché
     def __str__(self):
+        """
+        Retroune la représentation textuelle de la catégorie
+        Les catégories complexes sont parenthésées pour faciliter la lecture du moteur.
+        """
         if self.is_basic: 
             return str(self.left)
         l_str = str(self.left) if isinstance(self.left, str) or getattr(self.left, 'is_basic', False) else f"({self.left})"
@@ -31,7 +48,16 @@ class Categories :
     
 # Fonction de gestion de la coordination X\X/X
     def matches(self, other):
-        
+        """
+        Cette fonction vérifie si deux catégories sont compatibles pour être unifiées
+        La variable X sert de joker pour la coordination : X\X/X
+        Toute catégorie concrète est compatible avec X
+
+        Entrées :
+            other (str) : la catégorie à comparer
+        Sortie :
+            bool : True si les deux catégories sont unifiables, False sinon
+        """
         if isinstance(other, str):
             return str(self) == other
         
@@ -47,14 +73,13 @@ class Categories :
         if self.is_basic:
             return self.left == other.left
         
-        # comparaison récursive !!! boucle infinie si mal géré
+        # Comparaison récursive des catégories complexes -- attention
         left_match = self.left.matches(other.left) if hasattr(self.left, 'matches') else (self.left == other.left)
         right_match = self.right.matches(other.right) if hasattr(self.right, 'matches') else (self.right == other.right)
         
         return self.slash == other.slash and left_match and right_match
-    
-# ------------ fin classe ------
 
+# CHARGEMENT DES DONNEES
 def charger_phrases(filename):
     """
     Cette fonction permet de charger les phrases à analyser
@@ -63,7 +88,7 @@ def charger_phrases(filename):
         filename (str) : nom du fichier en .txt
     
     Sortie : 
-        phrases (liste) : 
+        phrases (liste) : liste des phrases chargées, retourne liste vide si fichier introuvable
 
     """
     phrases = []
@@ -74,39 +99,50 @@ def charger_phrases(filename):
                 if l and not ligne.startswith("#"):
                     phrases.append(l)
     except FileNotFoundError :
-        print(f"Erreur : le fichier {filename} des phrases = non trouvé")
+        print(f"Erreur : le fichier {filename} des phrases est introuvable")
+    except OSError as e :
+        print("Erreur de lecture du ficher {filename}")
     return phrases
 
 
 def charger_lexique(filename):
     """
-    Cette fonction permet de charger le lexique
+    Cette fonction permet de charger le lexique depuis un fichier texte
 
     Entrée : 
         filename (str) : nom du fichier en .txt
     Sortie:
-        lexique (dictionnaire) :
+        lexique (dict) : dictionnaire de forme : {mot1 : [catégorie1, catégorie2,...],
+                                                  mot2 : [...],..}
     """
     lexique = {}
-    with open(filename, 'r', encoding= 'utf-8') as f:
-        lignes = f.readlines()
-        print(len(lignes))
     try:
         with open(filename, mode='r',encoding='utf-8') as f:
-            for ligne in f:
+            for num_ligne, ligne in enumerate(f, statr=1):
                 l = ligne.strip()
                 if l and not l.startswith("#"):
-                    if ":" in ligne:
-                        mot, cats = ligne.split(":",1)
-                        listes_cats = [c.strip() for c in cats.split(",")]
-                        lexique[mot.strip()] = listes_cats
+                    continue
+                if ":"not in l:
+                    print(f"Ligne %d ignorée : format invalide")
+                    continue
+                mot, cats = ligne.split(":",1)
+                mot = mot.strip()
+                if not mot :
+                    print(f"Ligne %d ignorée : mot vide ignoré :", num_ligne)
+                    continue
+                listes_cats = [c.strip() for c in cats.split(",") if c.strip()]
+                if not listes_cat : 
+                    print(f"Ligne %d aucune catégorie pour :", num_ligne, mot)
+                    continue
+                lexique[mot] = listes_cats
+        print(f"%d entrée(s) lexicale(s) chargée(s) depuis '%s'.", num_ligne, mot)
+        
     except FileNotFoundError :
-        print(f"Erreur : le fichier {filename} des phrases = non trouvé")
-    except Exception as e:
-        print(f"erreur lecture du {filename}")
-    print(lexique)
+        print(f"Erreur : le fichier {filename} des phrases est introuvable")
+    except OSError as e :
+        print("Erreur de lecture du ficher {filename}")
+   
     return lexique
-
 
 def clean_categories(s, word=None):
         r"""
@@ -115,64 +151,92 @@ def clean_categories(s, word=None):
                     
         Logique :
         1.  Supprime les parenthèses redondantes si y'en a (ex: '((S\NP))' -> 'S\NP')
-        2. Identifie le connecteur principal (slash ou backslash) situé au niveau 0 
-            de nesting (hors parenthèses)
-        3. Divise la chaîne en deux et instancie les sous-catégories jusqu'à 
-            atteindre les catégories atomiques (S, NP, N, etc.). Attention récursivité ici.
+        2. Cherche le slash princiapl de droite à gauche.
+        3. Construite récursivement les sous-catégories : divise la chaîne en deux et 
+            instancie les sous-catégories jusqu'à atteindre les catégories basiques (S, NP). 
+            Attention récursivité ici.
                     
         Entrée :
-            s (str): La catégorie sous forme de texte (ex: "(S\NP)/NP").
-            word (str, optional): Le mot associé pour la traçabilité dans l'arbre.
+            s (str): la catégorie sous forme de texte (ex: "(S\NP)/NP").
+            word (str, optional): le mot associé pour la traçabilité dans l'arbre.
                         
         Sortie :
-            Categories: Un objet CategoryCategorie (simple ou complexe)."""
-        
-        # Gestion des parenthèses
+            Categories : l'objet Catégories correspondant
+        """
+       
         s = s.strip()
+        if not s :
+            raise ValueError("Impossible de traiter une catégorie vide.")
+            # Etape 1 : suppression des parenthèses externes redondantes - si y'en a -
         while s.startswith("(") and s.endswith(")"):
             depth, split = 0, True
-            for char in s[1:-1]:
-                if char == "(": depth += 1
-                elif char == ")": depth -= 1
-                if depth < 0: split = False; break
-            if split: s = s[1:-1].strip()
-            else: 
+            for char in s[1:-1] :
+                if char == "(" : 
+                    depth += 1
+                elif char == ")" : 
+                    depth -= 1
+                if depth < 0 : 
+                    split = False
+                    break
+            if split : 
+                s = s[1:-1].strip()
+            else : 
                 break
-        # Recherche catégorie simple (NP, S)
+        # Etape 2 : recherche des catégories simples (NP, S)
         if not any(c in s for c in ["/", "\\"]):
             return Categories(s, word=word)
         
-        # Cherche le \ ou / principal pour trouver 1ère catégorie à droite
+        # Etape 3 : cherche le \ ou / principal pour trouver 1ère catégorie à droite
         depth, split_idx = 0, -1
-        for i in range(len(s)-1, -1, -1):
-            if s[i] == ")": depth += 1
-            elif s[i] == "(": depth -= 1
-            elif depth == 0 and s[i] in ["/", "\\"]:
+        for i in range(len(s)-1, -1, -1) :
+            if s[i] == ")" : 
+                depth += 1
+            elif s[i] == "(" : 
+                depth -= 1
+            elif depth == 0 and s[i] in ["/", "\\"] :
                 split_idx = i; 
                 break
             
-        # Construction récursive de l'objet, construit les sous-catégorie jusqu'à arriver à S ou NP
+        # Etape 4 : construction récursive de l'objet
         if split_idx != -1:
-            return Categories(clean_categories(s[:split_idx]), s[split_idx], clean_categories(s[split_idx+1:]), word=word)
+            return Categories(clean_categories(s[:split_idx]), 
+                              s[split_idx], 
+                              clean_categories(s[split_idx+1:]),
+                              word=word)
         
         return Categories(s, word=word)
 
-# REGLES
+# REGLES COMBINATOIRES
 
-# moule pour essayer de gérer le "et" sans avoir 10k entrées dans le lexique 
 def substitut_x(template, concrete):
     """
     Remplace X par la catégorie concrète lors d'une 
-    coordination pour la recherche
+    coordination pour la recherche.
+
+    Entrées : 
+        template (str) : catégorie contenant éventuellement la variable X
+        concrete (str) : catégorie concrète qui remplace X
+    Sortie :
+        Retourne la catégorie X remplacé par concrete
     """
-    if getattr(template, 'is_basic', isinstance(template, str)):
+    if getattr(template, 'is_basic', isinstance(template, str)) :
         t_val = template.left if hasattr(template, 'left') else template
         return concrete if t_val == "X" else Categories(t_val)
-    return Categories(substitut_x(template.left, concrete), template.slash, substitut_x(template.right, concrete))
+    return Categories(substitut_x(template.left, concrete), 
+                      template.slash, 
+                      substitut_x(template.right, concrete))
 
 def appli_norm(l, r):
     """
+    Règle d'application (>) : X / Y  Y -> X
+    Si la catégorie gauche cherche un argument Y à droite et que 
+    la catégorie droite est compatible avec Y, on retourne X
 
+    Entrées : 
+        l (Categories) : catégorie gauche
+        r (Categories) : catégorie droite
+    Sortie :
+        La catégorie résultante ou None si la règle ne s'applique pas
     """
     if l.slash == "/" and l.right.matches(r):
         res = substitut_x(l.left, r) if "X" in str(l) else l.left
@@ -181,7 +245,15 @@ def appli_norm(l, r):
 
 def appli_inverse(l, r):
     """
-    
+    Règle d'application inverse (<) : Y  X\\Y -> X
+    Si la catégorie droite cherche un argument Y à gauche et que 
+    la catégorie gauche est compatible avec Y, on retourne X
+
+    Entrées : 
+        l (Categories) : catégorie gauche
+        r (Categories) : catégorie droite
+    Sortie :
+        La catégorie résultante ou None si la règle ne s'applique pas
     """
     if r.slash == "\\" and r.right.matches(l):
         res = substitut_x(r.left, l) if "X" in str(r) else r.left
@@ -190,7 +262,13 @@ def appli_inverse(l, r):
 
 def compo_harmo(l, r):
     """
-    
+    Règle de composition harmonique (>B) : X/Y  Y\Z -> X\Z
+
+     Entrées : 
+        l (Categories) : catégorie gauche
+        r (Categories) : catégorie droite
+    Sortie :
+        La catégorie résultante ou None si la règle ne s'applique pas
     """
     if l.slash == "/" and r.slash == "/" :
         if l.right.matches(r.left):
@@ -199,7 +277,13 @@ def compo_harmo(l, r):
 
 def compo_inverse(l, r):
     """
-    
+    Règle de composition harmonique (<B) : Y\\Z  X\\Y -> X\\Z
+
+     Entrées : 
+        l (Categories) : catégorie gauche
+        r (Categories) : catégorie droite
+    Sortie :
+        La catégorie résultante ou None si la règle ne s'applique pas
     """
     if r.slash == "\\" and l.slash == "\\":
         if r.right.matches(l.left):
@@ -208,7 +292,10 @@ def compo_inverse(l, r):
 
 def type_raising(c):
     """
+    Règle de type-raising (>T) : NP -> S/ S \NP
 
+    Entrées : 
+        c (Categories) : catégorie à élever (doit être un NP)
     """
     if c.is_basic and c.left == "NP":
         s = Categories("S")
