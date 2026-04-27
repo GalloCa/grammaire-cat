@@ -1,3 +1,8 @@
+
+
+
+
+
 import time
 import tracemalloc
 import base64
@@ -103,7 +108,6 @@ def charger_phrases(filename):
     except OSError as e :
         print("Erreur de lecture du ficher {filename}")
     return phrases
-
 
 def charger_lexique(filename):
     """
@@ -294,33 +298,43 @@ def type_raising(c):
     """
     Règle de type-raising (>T) : NP -> S/ S \NP
 
+    Transforme tout constituant dont la catégorie est NP
+    
     Entrées : 
         c (Categories) : catégorie à élever (doit être un NP)
+    Sorties :
+        la nouvelle catégorie (S/ S\\NP), ou None si inapplicable
     """
-    if c.is_basic and c.left == "NP":
+    if str(c) == "NP" : 
         s = Categories("S")
         s_np = Categories(Categories("S"), "\\", Categories("NP"))
         return Categories(s, "/", s_np, origin=(c, None, "> T"))
     return None
 
-
 # ALGORITHME PRINCIPAL
 def prog_cat(sentence, lexicon, use_tr=True):
     r"""
     L'algorithme remplit une table de hachage (chart) 
-    en combinant les catégories lexicales selon les règles d'application, de composition
-    et type-raising
-    
+    en combinant les catégories lexicales selon les règles d'application, 
+    de composition et type-raising
 
     Entrées :
-        sentence (str): La phrase à analyser
-        lexicon (dict): Le dictionnaire contenant les catégories associées aux mots
-        use_tr (bool): Active ou désactive le Type-Raising (NP -> S/(S\NP))
+        sentence (str): la phrase à analyser
+        lexicon (dict): le dictionnaire contenant les catégories associées aux mots
+        use_tr (bool): active ou désactive le Type-Raising (NP -> S/(S\NP)), par défaut : True
 
     Sortie :
-        tuple: (valid_sols, nb_comb, exec_time, full_chart, peak_memory)
+        tuple: (
+            valid_sols (list[Categories]) : dérivations complètes aboutissant à S
+            nb_comb (int) : nombre total de combinaisons testés
+            exec_time (float) : temps d'exécution en millisecondes
+            chart (list[list[dict]]) : la table complète
+            pic_kb (float) : pic mémoire en kilooctets
+            stats_evolution (list[tuple]) : évolution des stats par span 
     """
 
+    if not sentence.strip() :
+        raise ValueError("La phrase à analyser est vide")
     # Mise en place d'un monitoring des performances (temps et mémoire)
     start_t = time.perf_counter() 
     tracemalloc.start() 
@@ -339,38 +353,46 @@ def prog_cat(sentence, lexicon, use_tr=True):
     for i, word in enumerate(words):
         if word in lexicon:
             for cat_str in lexicon[word]:
-                c = clean_categories(cat_str, word=word)
-                chart[i][i+1]["succes"].append(c)
-                # Gestion type-rasing
-                if use_tr:
-                    tr = type_raising(c)
-                    if tr: chart[i][i+1]["succes"].append(tr)
+                try :
+                    c = clean_categories(cat_str, word=word)
+                    chart[i][i+1]["succes"].append(c)
+                    # Gestion type-rasing
+                    if use_tr :
+                        tr = type_raising(c)
+                        if tr : 
+                            chart[i][i+1]["succes"].append(tr)
+                except ValueError ase :
+                    print(f"Catégorie invalide '%s' pour le mot '%s' : %s",
+                          cat_str, word, e)
         else:
             # Gestion des mots inconnus
+            print(f"Mot inconnu du lexique : '%s'.", word)
             chart[i][i+1]["succes"].append(Categories("???", word=word))
             
     # DEBUT BOUCLE DE RECHERCHE 
-    for span in range(2, n + 1):
-        for i in range(n - span + 1):
+    for span in range(2, n + 1) :        # longueur du segment courant
+        for i in range(n - span + 1) :   
             j = i + span
-            for k in range(i + 1, j):
+            for k in range(i + 1, j) :
 
                 # GESTION DU CAS DE LA COORDINATION
-                if j - i >= 3:
-                    for k2 in range(k + 1, j):
-                        for c1 in chart[i][k]["succes"]:
-                            for c2 in chart[k][k2]["succes"]:
-                                if (c2.word or '').lower() == 'et':
-                                    for c3 in chart[k2][j]["succes"]:
+                if j - i >= 3 :
+                    for k2 in range(k + 1, j) :
+                        for c1 in chart[i][k]["succes"] :
+                            for c2 in chart[k][k2]["succes"] :
+                                if (c2.word or '').lower() == 'et' :
+                                    for c3 in chart[k2][j]["succes"] :
                                         nb_comb += 1
-                                        if c1.matches(c3):
+                                        if c1.matches(c3) :
                                             res = Categories(c1.left, c1.slash, c1.right, origin=(c1, c2, c3, "<*>"))
                                             chart[i][j]["succes"].append(res)
 
                 # cAS GENERAL / REGLES BINAIRES 
-                for left in chart[i][k]["succes"]:
-                    for right in chart[k][j]["succes"]:
-                        if (left.word or '').lower() == 'et' or (right.word or '').lower() == 'et': 
+                for left in chart[i][k]["succes"] :
+                    for right in chart[k][j]["succes"] :
+                        if (left.word or '').lower() == 'et' :
+                            contunue 
+                        if (right.word or '').lower() == 'et' : 
                             continue
 
                         nb_comb += 1
@@ -381,13 +403,19 @@ def prog_cat(sentence, lexicon, use_tr=True):
                                     appli_inverse(left, right), 
                                     compo_harmo(left, right), 
                                     compo_inverse(left, right)]:
-                            if res: 
+                            if res is not None : 
                                 chart[i][j]["succes"].append(res)
                                 found_rule = True
-                        
+                                # Gestion du type-raising sur tout NP
+                                if use_tr :
+                                    tr = type_raising(res)
+                                    if tr :
+                                        chart[i][j]["succes"].append(tr)
+                                      
                         # Stockage des échecs pour l'affichage et analyse 
                         if not found_rule:
                             chart[i][j]["stop"].append((left, right))
+        # Enregistrement des stats à la fin de chaque span
         current_t = (time.perf_counter() - start_t) * 1000
         _, pic = tracemalloc.get_traced_memory()
         stats_evolution.append((span, current_t, nb_comb, pic / 1024))
@@ -401,6 +429,9 @@ def prog_cat(sentence, lexicon, use_tr=True):
     # Fitrage des résultats des succès : dérivation complète avec S en final
     valid = [s for s in chart[0][n]["succes"] if str(s) == "S"]
 
+    print(f"Analyse de '%s' : %d solution(s), %d combinaisons, %.2f ms, %.2f KB", 
+          sentence, len(valid), nb_comb, exec_t, pic_kb)
+    
     return valid, nb_comb, exec_t, chart, pic_kb, stats_evolution
 
 
