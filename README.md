@@ -1,72 +1,97 @@
-**(WIP) -- CCG-Parser : Analyseur de Grammaires Catégorielles**
+# Moteur d’inférence pour Grammaire Catégorielle Combinatoire (CCG)
 
-Ce projet implémente un analyseur syntaxique basé sur les Grammaires Catégorielles Combinatoires (CCG). Il permet de transformer des énoncés en langage naturel en structures formelles de dérivation en utilisant un algorithme de type Chart Parsing.
+Ce projet propose une implémentation exploratoire en Python d'un moteur d'inférence syntaxique fondé sur le formalisme des **Grammaires Catégorielles Combinatoires (CCG)** (Steedman, Baldridge).
 
-**Objectifs du projet**
+Conçu selon les principes des systèmes à base de connaissances (*Knowledge-Based Systems*), il modélise la syntaxe comme un calcul logique de types déclaratif. L'objectif est d'étudier le comportement d'un parseur symbolique ascendant (*chart parsing*), d'observer la traçabilité des preuves formelles et d'analyser les limites combinatoires du formalisme face au français (corpus contrôlé vs données réelles).
 
-L'enjeu est de modéliser la langue non pas comme une simple suite de mots, mais comme un système de calcul de types. Chaque entrée lexicale est vue comme une fonction ou un argument, permettant de vérifier la grammaticalité d'une phrase par réduction logique.
+**Rapport d'analyse complet** : [Consulter le rapport (PDF)](docs/rapport_grammaire_categorielle.pdf)
 
-Ce parseur a été développé dans le cadre de mon Master 1 Industries de la Langue (UGA) afin d'explorer l'interface entre sémantique formelle et développement Python.
+---
 
-**Fonctionnalités techniques**
-1. Raisonnement formel sur structures typées
+## Cadre formel & Architecture
 
-L'analyseur repose sur une classe Categories capable de manipuler récursivement des catégories atomiques (S, NP, N) et complexes (fonctions de type A/B ou A\B).
+Le système repose sur une stricte séparation entre connaissances et moteur de déduction :
+* **Connaissances Factuelles (KF)** : le lexique catégoriel associant à chaque unité ses types atomiques (`S`, `NP`) ou ses catégories fonctionnelles directionnelles (`X/Y`, `X\Y`).
+* **Connaissances Procédurales (KP)** : les règles combinatoires universelles régissant les réductions.
+* **Moteur d'inférence** : un algorithme de *chart parsing* ascendant qui explore exhaustivement l'espace des réductions possibles pour prouver l'axiome cible **`S`**.
 
-    Parsing de catégories : Transformation de chaînes complexes (ex: (S\NP)/NP) en arbres d'objets.
+### Règles combinatoires implémentées
 
-    Gestion de la coordination : Implémentation d'un mécanisme de substitution via une 
-                                 catégorie schématique X pour gérer les conjonctions (type X\X/X).
+| Règle | Notation | Schéma formel | Description |
+| :--- | :---: | :--- | :--- |
+| **Application avant** | `>` | `X/Y  Y → X` | Consommation d'un argument à droite |
+| **Application arrière** | `<` | `Y  X\Y → X` | Consommation d'un argument à gauche |
+| **Composition harmonique avant** | `>B` | `X/Y  Y/Z → X/Z` | Fusion fonctionnelle projective |
+| **Composition harmonique arrière** | `<B` | `Y\Z  X\Y → X\Z` | Fusion fonctionnelle rétrograde |
+| **Type-Raising** | `>T` | `NP → S/(S\NP)` | Élévation catégorielle de NP |
+| **Coordination** | `<*>` | `X  (X\X)/X  X → X` | Schéma polymorphe pour les conjonctions |
 
-2. Règles Combinatoires implémentées
+---
 
-Le système supporte les règles fondamentales du calcul de Steedman :
+## Organisation des données
+Les fichiers d'entrée doivent être placés dans le répertoire data/ :
+```
+.
+├── data/
+│   ├── lexique_gorafi.txt   # Lexique syntaxique
+│   └── phrases_gorafi.txt   # Énoncés à analyser (un par ligne)
+├── main.py
+└── README.md
+```
 
-    Applications : Fonctionnelle directe (>) et inverse (<).
+**Format du lexique** :
+Chaque ligne associe un mot à une ou plusieurs catégories séparées par des virgules (mot : cat1, cat2) :
+```
+Garfield : NP
+mange : S\NP, S\NP/NP
+et : X\X/X
+de : NP\NP/NP
+```
+**Format des phrases** : 
+Les énoncés sont indiqués bruts, ligne par ligne :
+```
+Garfield mange Mickey
+Nicolas Sarkozy reçoit le prix de la littérature de la FIFA
+```
 
-    Compositions : Harmonique (>B) et inverse (<B).
+---
 
-    Type-Raising : Montée de type (>T) pour les groupes nominaux (NP→S/(S\NP)).
+## Expérimentations & Réflexions
 
-3. Monitoring et Performance
+Le moteur a été confronté à deux types d'énoncés pour comparer son comportement théorique et pratique :
 
-Pour répondre aux exigences d'optimisation, le parseur intègre :
+### 1. Corpus contrôlé (11 phrases de test)
+* **Structures validées** : transitivité (SVO), auxiliaires modaux (`(S\NP)/(S\NP)`), adverbes finaux et coordinations propositionnelles.
+* **Extraction & relatives** : validation de l'interaction clé entre *Type-Raising* (`>T`) et composition (`>B`) pour résoudre les relatives objets sans mouvement transformationnel (*« Mickey et Jerry que Garfield dévore mangent voracement »*).
+* **Binarité & axiome S** : mise en évidence de la stricte binarité symbolique. Une relative isolée (*« Mickey que Garfield dévore »*) dérive correctement en `NP`, mais est formellement rejetée par le moteur car l'axiome cible attendu est exclusivement `S`.
 
-    Un suivi du temps d'exécution (via time.perf_counter).
+### 2. Épreuve sur langue réelle (Corpus *Le Gorafi*)
+* **Densité catégorielle** : l'introduction de prépositions fonctionnelles (`NP\NP/NP`) et d'adjectifs multiplie les possibilités d'attachement.
+* **Explosion combinatoire** : sur la phrase *« Nicolas Sarkozy reçoit le prix de la littérature de la FIFA »*, le moteur explore **518 combinaisons** et génère **106 dérivations valides** pour `S` (phénomène de *spurious ambiguity*).
+* **Limites matérielles** : sur des structures à fort enchâssement prépositionnel (ex. phrase P3b à plus de 100 000 combinaisons), le stockage exhaustif des traces en mémoire illustre concrètement le coût du raisonnement symbolique non guidé face à la combinatoire de la langue naturelle.
 
-    Un monitoring de la consommation mémoire (via tracemalloc) pour identifier les pics lors du 
-    remplissage de la table de hachage.
+---
 
-4. Visualisation HTML
+## Visualisation & Monitoring
 
-Le script génère un rapport dynamique au format HTML (dérivation_gram_cat3.html) affichant :
+Pour chaque phrase soumise, le script compile un rapport HTML autonome (`sortie_gorafi.html`) comprenant :
+* **Arbres de dérivation complets en SVG** : tracé vectoriel des barres de règles, étiquettes combinatoires et catégories intermédiaires.
+* **Courbes de performance** : graphiques `matplotlib` (intégrés en base64) mesurant par longueur de *span* le temps de calcul (ms), le nombre cumulé d'unifications et le pic de mémoire vive (`tracemalloc`).
+* **Analyse d'erreur** : isolation des constituants maximaux et identification des points de blocage en cas d'échec de réduction.
 
-    Les arbres de dérivation complets avec stylisation CSS.
+Le rapport interactif est généré dans sortie_gorafi.html. Il s'ouvre directement dans n'importe quel navigateur web.
 
-    Les segments intermédiaires et les échecs de dérivation (pour le débogage linguistique).
+---
 
-**État du projet (Work In Progress)**
+## Exécution
+Lancez le script principal depuis la racine du projet :
+```
+python main.py
+```
 
-Ce projet est actuellement en cours de développement.
+---
 
-    Réalisé : Cœur de l'algorithme, gestion des types récursifs, règles de base et export HTML.
+## Références 
 
-    En cours : Amélioration du rendu visuel des pointillés de dérivation dans le rapport HTML et extension du lexique de test.
-
-    Perspectives : Intégration de l'unification pour la gestion des traits de genre et de nombre.
-
-**Utilisation**
-
-    Assurez-vous d'avoir deux fichiers sources à la racine :
-
-        base_lexicale.txt : Lexique au format mot : catégorie1, catégorie2
-
-        phrases.txt : Liste des phrases à tester.
-
-    Lancez le script :
-  
-    Bash
-    
-    python main.py
-    
-    Ouvrez le fichier dérivation_gram_cat.html généré pour visualiser les résultats.
+* **Miller, P. & Torris, T. (1990)**. *Formalismes syntaxiques pour le traitement automatique du langage naturel*. Hermès.
+* **Steedman, M. & Baldridge, J. (2011)**. *Combinatory Categorial Grammar. In Non-Transformational Syntax*, Wiley-Blackwell.
