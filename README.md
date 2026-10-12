@@ -4,7 +4,7 @@ Ce projet propose une implémentation exploratoire en Python d'un moteur d'infé
 
 Conçu selon les principes des systèmes à base de connaissances (*Knowledge-Based Systems*), il modélise la syntaxe comme un calcul logique de types déclaratif. L'objectif est d'étudier le comportement d'un parseur symbolique ascendant (*chart parsing*), d'observer la traçabilité des preuves formelles et d'analyser les limites combinatoires du formalisme face au français (corpus contrôlé vs données réelles).
 
-**Rapport d'analyse complet** : [Consulter le rapport (PDF)](docs/rapport_grammaire_categorielle.pdf)
+**Rapport d'analyse complet** : [Consulter le rapport (PDF)](rapport_grammaire_categorielle.pdf)
 
 ---
 
